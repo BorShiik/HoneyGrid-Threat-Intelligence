@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Wspólny kontrakt zdarzeń HoneyGrid — docelowo publikowany jako pakiet NuGet -->
+  <PropertyGroup>
+    <PackageId>HoneyGrid.Contracts</PackageId>
+    <Version>0.1.0</Version>
+    <Description>Wspólny schemat zdarzeń (event contract) platformy HoneyGrid Threat Intelligence: model HoneypotEvent, enumy sensorów/zdarzeń, opcje serializacji JSON oraz walidacja FluentValidation.</Description>
+    <PackageTags>honeypot;threat-intelligence;contracts;honeygrid</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- CS1591: nie wymagamy XML-doc dla samoopisujących się stałych i wartości enumów -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- Świadomie NIE pakujemy przy każdym buildzie — pack uruchamiany w pipeline CI -->
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" Version="12.1.1" />
+  </ItemGroup>
+
+</Project>

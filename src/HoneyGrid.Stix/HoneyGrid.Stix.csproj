@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Silnik eksportu STIX 2.1 (Indicator, Malware, Attack-Pattern, Bundle) -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\HoneyGrid.Contracts\HoneyGrid.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

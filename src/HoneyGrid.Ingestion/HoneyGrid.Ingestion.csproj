@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <!-- Pipeline ingestii: konsument Event Hub + wzbogacanie zdarzeń (GeoIP, TI) -->
+  <PropertyGroup>
+    <UserSecretsId>dotnet-HoneyGrid.Ingestion-d6982863-71fc-4fe5-b523-b06db1ce8578</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Messaging.EventHubs" Version="5.12.2" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.7" />
+    <PackageReference Include="Serilog.Extensions.Hosting" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HoneyGrid.Contracts\HoneyGrid.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- Honeypot webowy (fałszywy panel logowania WordPress/admin) — Minimal API -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\HoneyGrid.Contracts\HoneyGrid.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

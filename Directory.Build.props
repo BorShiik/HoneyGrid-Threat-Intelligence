@@ -1,0 +1,20 @@
+<Project>
+
+  <!-- Wspólne ustawienia kompilacji dla całego monorepo HoneyGrid -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <!-- Wspólne metadane pakietów / zespołów -->
+  <PropertyGroup>
+    <Authors>HoneyGrid Team</Authors>
+    <Product>HoneyGrid</Product>
+    <Company>HoneyGrid</Company>
+    <RepositoryUrl>https://github.com/honeygrid/HoneyGrid-Threat-Intelligence</RepositoryUrl>
+  </PropertyGroup>
+
+</Project>

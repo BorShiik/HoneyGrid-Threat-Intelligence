@@ -1,0 +1,52 @@
+[
+  {
+    "eventId": "0b7e9d2a-4f31-4c8e-9a56-1d2e3f4a5b6c",
+    "classification": {
+      "killChainPhase": "recon",
+      "category": "brute-force",
+      "sophistication": 0.1,
+      "intent": "masowe skanowanie słabych poświadczeń SSH",
+      "actorId": "actor-7f3a"
+    }
+  },
+  {
+    "eventId": "1c8f0e3b-5a42-4d9f-8b67-2e3f4a5b6c7d",
+    "classification": {
+      "killChainPhase": "exploitation",
+      "category": "credential-compromise",
+      "sophistication": 0.25,
+      "intent": "uzyskanie dostępu shell przez słabe hasło root",
+      "actorId": "actor-7f3a"
+    }
+  },
+  {
+    "eventId": "2d9a1f4c-6b53-4e0a-9c78-3f4a5b6c7d8e",
+    "classification": {
+      "killChainPhase": "delivery",
+      "category": "malware-download",
+      "sophistication": 0.45,
+      "intent": "dostarczenie koparki kryptowalut na przejęty host",
+      "actorId": "actor-7f3a"
+    }
+  },
+  {
+    "eventId": "3e0b2a5d-7c64-4f1b-8d89-4a5b6c7d8e9f",
+    "classification": {
+      "killChainPhase": "installation",
+      "category": "persistence",
+      "sophistication": 0.5,
+      "intent": "utrwalenie obecności przez wpis @reboot w crontab",
+      "actorId": "actor-7f3a"
+    }
+  },
+  {
+    "eventId": "4f1c3b6e-8d75-4a2c-9e90-5b6c7d8e9f0a",
+    "classification": {
+      "killChainPhase": "recon",
+      "category": "web-scan",
+      "sophistication": 0.05,
+      "intent": "automatyczne skanowanie paneli logowania WordPress",
+      "actorId": "actor-2c9b"
+    }
+  }
+]
