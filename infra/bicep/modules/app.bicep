@@ -109,7 +109,7 @@ resource staticWebApp 'Microsoft.Web/staticSites@2023-12-01' = {
 // ---------------------------------------------------------------------------
 // PLACEHOLDERY: Container Apps (definicje per sensor/usługa)
 // Wspólne założenia: minReplicas = 0 (scale-to-zero), obrazy z ACR przez
-// Managed Identity (AcrPull), sekrety wyłącznie z Key Vault (moduł ai.bicep).
+// Managed Identity (AcrPull), sekrety wyłącznie z Key Vault (moduł security.bicep).
 // ---------------------------------------------------------------------------
 
 // TODO (Tydzień 1, Track A): sensor Cowrie (SSH/Telnet honeypot)

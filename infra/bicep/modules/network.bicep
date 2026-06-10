@@ -263,31 +263,10 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
 }
 
 // ---------------------------------------------------------------------------
-// PLACEHOLDERY: Private DNS / Private Link
-// TODO (Tydzień 2, Track B): odkomentować strefy Private DNS i podpiąć
-// Private Endpoints dla Cosmos DB, Blob Storage i Service Bus.
+// Private DNS / Private Link żyje w modules/privatelink.bicep (Tydzień 1,
+// Track A): strefy Private DNS, linki VNet i Private Endpoints dla
+// Cosmos DB / Blob Storage / Key Vault w podsieci snet-data.
 // ---------------------------------------------------------------------------
-// resource cosmosPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = {
-//   name: 'privatelink.documents.azure.com'
-//   location: 'global'
-//   tags: tags
-// }
-//
-// resource blobPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = {
-//   name: 'privatelink.blob.${az.environment().suffixes.storage}'
-//   location: 'global'
-//   tags: tags
-// }
-//
-// resource serviceBusPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = {
-//   name: 'privatelink.servicebus.windows.net'
-//   location: 'global'
-//   tags: tags
-// }
-//
-// TODO (Tydzień 2, Track B): linki VNet do stref DNS
-// (Microsoft.Network/privateDnsZones/virtualNetworkLinks) + zasoby
-// Microsoft.Network/privateEndpoints w podsieci snet-data.
 
 // ---------------------------------------------------------------------------
 // Wyjścia
@@ -298,5 +277,6 @@ output dmzSubnetId string = vnet.properties.subnets[0].id
 output logicSubnetId string = vnet.properties.subnets[1].id
 output dataSubnetId string = vnet.properties.subnets[2].id
 output dmzNsgId string = dmzNsg.id
+output dmzNsgName string = dmzNsg.name
 output logicNsgId string = logicNsg.id
 output dataNsgId string = dataNsg.id

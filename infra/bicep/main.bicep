@@ -1,5 +1,5 @@
 // ============================================================================
-// HoneyGrid — orkiestrator główny (Tydzień 0: szkielet)
+// HoneyGrid — orkiestrator główny (Tydzień 1: sieć + płaszczyzna bezpieczeństwa)
 // Zakres: subskrypcja — tworzy Resource Group i wpina wszystkie moduły.
 // Wdrożenie: az deployment sub create -l <region> -f main.bicep -p main.dev.bicepparam
 // ============================================================================
@@ -30,7 +30,7 @@ param namePrefix string = 'hg'
 var tags = {
   project: 'HoneyGrid'
   environment: environment
-  track: 'week0-skeleton'
+  track: 'week1-network'
 }
 
 var resourceGroupName = '${namePrefix}-${environment}-rg'
@@ -45,13 +45,27 @@ resource rg 'Microsoft.Resources/resourceGroups@2024-07-01' = {
 }
 
 // ---------------------------------------------------------------------------
-// Moduły (kolejność: sieć -> monitoring/Sentinel -> dane -> aplikacje -> AI -> RBAC)
+// Moduły (kolejność: sieć -> bezpieczeństwo -> monitoring/Sentinel -> dane
+// -> aplikacje -> AI -> Private Link -> RBAC)
 // ---------------------------------------------------------------------------
 
 // Sieć hub-and-spoke: dmz (sensory) / logic (przetwarzanie) / data (Private Link).
 module network 'modules/network.bicep' = {
   scope: rg
   name: 'network-${environment}'
+  params: {
+    environment: environment
+    namePrefix: namePrefix
+    location: location
+    tags: tags
+  }
+}
+
+// Płaszczyzna bezpieczeństwa (Track A): tożsamości zarządzane (sensor, playbook)
+// + Key Vault w trybie RBAC (przeniesiony z ai.bicep w Tygodniu 1).
+module security 'modules/security.bicep' = {
+  scope: rg
+  name: 'security-${environment}'
   params: {
     environment: environment
     namePrefix: namePrefix
@@ -83,8 +97,9 @@ module data 'modules/data.bicep' = {
     namePrefix: namePrefix
     location: location
     tags: tags
-    // TODO (Tydzień 2, Track B): przekazać network.outputs.dataSubnetId
-    // i włączyć Private Endpoints dla Cosmos/Storage/Service Bus.
+    // Private Endpoints dla Cosmos/Blob/Key Vault tworzy moduł privatelink
+    // (niżej). TODO (Tydzień 2, Track A+B): publicNetworkAccess: 'Disabled'
+    // na Cosmos/Storage po zweryfikowaniu działania Private Endpoints.
   }
 }
 
@@ -113,18 +128,44 @@ module ai 'modules/ai.bicep' = {
   }
 }
 
-// RBAC — macierz najmniejszych uprawnień. W Tygodniu 0 same definicje GUID-ów ról
-// i warunkowe przypisania (puste principalId => nic się nie wdraża).
+// Private Link (Track A, Tydzień 1): strefy Private DNS + Private Endpoints
+// w snet-data dla Cosmos DB / Blob Storage / Key Vault. Event Hubs (Basic)
+// i Service Bus (Basic) świadomie BEZ PE — uzasadnienie w privatelink.bicep.
+module privatelink 'modules/privatelink.bicep' = {
+  scope: rg
+  name: 'privatelink-${environment}'
+  params: {
+    environment: environment
+    namePrefix: namePrefix
+    location: location
+    tags: tags
+    vnetId: network.outputs.vnetId
+    vnetName: network.outputs.vnetName
+    dataSubnetId: network.outputs.dataSubnetId
+    cosmosAccountName: data.outputs.cosmosAccountName
+    storageAccountName: data.outputs.storageAccountName
+    keyVaultName: security.outputs.keyVaultName
+  }
+}
+
+// RBAC — macierz najmniejszych uprawnień. Od Tygodnia 1 principalId sensorów
+// i playbooka pochodzą z modułu security (User-Assigned MI), a zakresy ról
+// danych zawężamy do konkretnych zasobów (namespace EH, Storage, ACR, NSG dmz).
 module rbac 'modules/rbac.bicep' = {
   scope: rg
   name: 'rbac-${environment}'
   params: {
-    // TODO (Tydzień 2-5, Track A+B): wstawić principalId tożsamości zarządzanych
-    // (sensory, playbooki, Logic Apps) po ich utworzeniu.
-    sensorPrincipalId: ''
+    sensorPrincipalId: security.outputs.sensorIdentityPrincipalId
+    playbookPrincipalId: security.outputs.playbookIdentityPrincipalId
+    // TODO (Tydzień 4-5, Track A+B): analityk i tożsamość Sentinela są
+    // specyficzne dla tenanta — ustawiane per wdrożenie (param / az cli).
     analystPrincipalId: ''
     automationPrincipalId: ''
-    playbookPrincipalId: ''
+    // Zawężone zakresy ról danych (Tydzień 1, Track A):
+    eventHubNamespaceName: data.outputs.eventHubNamespaceName
+    storageAccountName: data.outputs.storageAccountName
+    containerRegistryName: app.outputs.containerRegistryName
+    dmzNsgName: network.outputs.dmzNsgName
   }
 }
 
@@ -153,5 +194,16 @@ output staticWebAppDefaultHostname string = app.outputs.staticWebAppDefaultHostn
 output appInsightsConnectionString string = app.outputs.appInsightsConnectionString
 
 output openAiEndpoint string = ai.outputs.openAiEndpoint
-output keyVaultUri string = ai.outputs.keyVaultUri
 output mapsAccountName string = ai.outputs.mapsAccountName
+
+// Płaszczyzna bezpieczeństwa (moduł security — Tydzień 1, Track A).
+output keyVaultUri string = security.outputs.keyVaultUri
+output keyVaultName string = security.outputs.keyVaultName
+output sensorIdentityClientId string = security.outputs.sensorIdentityClientId
+output sensorIdentityPrincipalId string = security.outputs.sensorIdentityPrincipalId
+output playbookIdentityPrincipalId string = security.outputs.playbookIdentityPrincipalId
+
+// Private Endpoints (moduł privatelink — Tydzień 1, Track A).
+output cosmosPrivateEndpointId string = privatelink.outputs.cosmosPrivateEndpointId
+output blobPrivateEndpointId string = privatelink.outputs.blobPrivateEndpointId
+output keyVaultPrivateEndpointId string = privatelink.outputs.keyVaultPrivateEndpointId

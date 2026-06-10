@@ -1,5 +1,5 @@
 // ============================================================================
-// HoneyGrid — moduł AI i sekretów (Tydzień 0: szkielet)
+// HoneyGrid — moduł AI (Tydzień 0: szkielet; Tydzień 1: Key Vault → security.bicep)
 //
 // Zasoby:
 //   - Azure OpenAI (S0) + deployment gpt-4o-mini — klasyfikacja sesji
@@ -7,8 +7,9 @@
 //   - Azure Maps (Gen2 / SKU G2 — darmowy poziom transakcji) — geokodowanie
 //     IP atakujących pod mapę na dashboardzie
 //   - Communication Services — PLACEHOLDER (powiadomienia e-mail, Tydzień 5)
-//   - Key Vault w trybie RBAC (bez access policies) — filar architektury
-//     bezkluczowej: aplikacje czytają sekrety przez Managed Identity
+//
+// Key Vault został przeniesiony do modules/security.bicep (Tydzień 1, Track A) —
+// należy do płaszczyzny bezpieczeństwa zgodnie z podziałem pracy.
 // ============================================================================
 
 @allowed(['dev', 'prod'])
@@ -21,8 +22,6 @@ var suffix = uniqueString(resourceGroup().id)
 
 var openAiAccountName = '${namePrefix}-${environment}-oai-${suffix}'
 var mapsAccountName = '${namePrefix}-${environment}-maps'
-// Key Vault: nazwa globalna, max 24 znaki.
-var keyVaultName = '${namePrefix}-${environment}-kv-${take(suffix, 8)}'
 
 // ---------------------------------------------------------------------------
 // Azure OpenAI
@@ -97,29 +96,6 @@ resource mapsAccount 'Microsoft.Maps/accounts@2023-06-01' = {
 // }
 
 // ---------------------------------------------------------------------------
-// Key Vault — tryb RBAC, zero access policies (architektura bezkluczowa)
-// ---------------------------------------------------------------------------
-resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
-  name: keyVaultName
-  location: location
-  tags: tags
-  properties: {
-    tenantId: tenant().tenantId
-    sku: {
-      family: 'A'
-      name: 'standard'
-    }
-    // Filar bezkluczowości: autoryzacja WYŁĄCZNIE przez Azure RBAC
-    // (role "Key Vault Secrets User/Officer"), żadnych access policies.
-    enableRbacAuthorization: true
-    enableSoftDelete: true
-    softDeleteRetentionInDays: 7 // minimum — dev często kasuje/odtwarza
-    enablePurgeProtection: environment == 'prod' ? true : null
-    publicNetworkAccess: 'Enabled' // TODO (Tydzień 2, Track B): Private Endpoint
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Wyjścia
 // ---------------------------------------------------------------------------
 output openAiAccountId string = openAiAccount.id
@@ -129,7 +105,3 @@ output gptDeploymentName string = gpt4oMiniDeployment.name
 
 output mapsAccountId string = mapsAccount.id
 output mapsAccountName string = mapsAccount.name
-
-output keyVaultId string = keyVault.id
-output keyVaultName string = keyVault.name
-output keyVaultUri string = keyVault.properties.vaultUri
