@@ -23,6 +23,13 @@ param location string = 'westeurope'
 @maxLength(5)
 param namePrefix string = 'hg'
 
+@description('''Czy wdrażać zasoby Track B wrażliwe na region/limit: Azure OpenAI + Azure Maps
+(moduł ai) oraz Static Web App. Te usługi są dostępne tylko w wybranych regionach
+i/lub wymagają zatwierdzenia limitu (OpenAI). Gdy polityka subskrypcji wymusza region
+bez ich wsparcia (Szwecja/Norwegia/Polska), zostaw false — Track A (sieć, sensory,
+Event Hub, Cosmos, Sentinel) wdraża się w pełni. Track B włączy ten flag w swoim regionie.''')
+param deployTrackB bool = false
+
 // ---------------------------------------------------------------------------
 // Zmienne wspólne
 // ---------------------------------------------------------------------------
@@ -113,11 +120,24 @@ module app 'modules/app.bicep' = {
     location: location
     tags: tags
     logAnalyticsWorkspaceName: sentinel.outputs.logAnalyticsWorkspaceName
+    // Tydzień 2, Track A: integracja VNet (snet-dmz), tożsamość sensorów i
+    // wpięcie telemetrii do Event Hubs. Brak cykli: app zależy od network /
+    // security / data (które nie zależą od app).
+    dmzSubnetId: network.outputs.dmzSubnetId
+    sensorIdentityId: security.outputs.sensorIdentityId
+    sensorIdentityClientId: security.outputs.sensorIdentityClientId
+    // Principal ID do przypisania roli AcrPull w module app (przed Container Apps).
+    sensorIdentityPrincipalId: security.outputs.sensorIdentityPrincipalId
+    eventHubNamespaceName: data.outputs.eventHubNamespaceName
+    eventHubName: data.outputs.eventHubName
+    // Static Web App tylko gdy region Track B na to pozwala (patrz deployTrackB).
+    deployStaticWebApp: deployTrackB
   }
 }
 
-// Warstwa AI: Azure OpenAI (gpt-4o-mini), Azure Maps, Key Vault (RBAC, bezkluczowo).
-module ai 'modules/ai.bicep' = {
+// Warstwa AI: Azure OpenAI (gpt-4o-mini), Azure Maps (Track B). Wdrażane warunkowo —
+// dostępne tylko w wybranych regionach / wymagają zatwierdzenia limitu OpenAI.
+module ai 'modules/ai.bicep' = if (deployTrackB) {
   scope: rg
   name: 'ai-${environment}'
   params: {
@@ -164,7 +184,7 @@ module rbac 'modules/rbac.bicep' = {
     // Zawężone zakresy ról danych (Tydzień 1, Track A):
     eventHubNamespaceName: data.outputs.eventHubNamespaceName
     storageAccountName: data.outputs.storageAccountName
-    containerRegistryName: app.outputs.containerRegistryName
+    // AcrPull jest w module app (kolejność wdrożenia) — tu nie przekazujemy ACR.
     dmzNsgName: network.outputs.dmzNsgName
   }
 }
@@ -193,8 +213,14 @@ output containerRegistryLoginServer string = app.outputs.containerRegistryLoginS
 output staticWebAppDefaultHostname string = app.outputs.staticWebAppDefaultHostname
 output appInsightsConnectionString string = app.outputs.appInsightsConnectionString
 
-output openAiEndpoint string = ai.outputs.openAiEndpoint
-output mapsAccountName string = ai.outputs.mapsAccountName
+// Sensory honeypot (moduł app — Tydzień 2, Track A): FQDN do weryfikacji/demo.
+output cowrieAppFqdn string = app.outputs.cowrieAppFqdn
+output webHoneypotAppFqdn string = app.outputs.webHoneypotAppFqdn
+output tcpListenerAppFqdn string = app.outputs.tcpListenerAppFqdn
+
+// Wyjścia Track B — puste gdy deployTrakB=false (moduł ai nie wdrożony).
+output openAiEndpoint string = deployTrackB ? ai!.outputs.openAiEndpoint : ''
+output mapsAccountName string = deployTrackB ? ai!.outputs.mapsAccountName : ''
 
 // Płaszczyzna bezpieczeństwa (moduł security — Tydzień 1, Track A).
 output keyVaultUri string = security.outputs.keyVaultUri

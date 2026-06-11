@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Testy jednostkowe sensorów: mapper Cowrie, sink/kanał, logika honeypota webowego. -->
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\HoneyGrid.Contracts\HoneyGrid.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\HoneyGrid.Sensors\HoneyGrid.Sensors.Common\HoneyGrid.Sensors.Common.csproj" />
+    <ProjectReference Include="..\..\src\HoneyGrid.Sensors\HoneyGrid.Sensors.CowrieShipper\HoneyGrid.Sensors.CowrieShipper.csproj" />
+    <ProjectReference Include="..\..\src\HoneyGrid.Sensors\HoneyGrid.Sensors.Web\HoneyGrid.Sensors.Web.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Próbka logu Cowrie kopiowana do katalogu wyjściowego dla testów mappera. -->
+    <None Include="..\..\fixtures\cowrie\cowrie-sample.json" Link="fixtures\cowrie-sample.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

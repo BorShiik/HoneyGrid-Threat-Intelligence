@@ -107,6 +107,81 @@ resource dmzNsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
           destinationPortRange: '443'
         }
       }
+      // Platforma Container Apps wymaga ruchu wychodzacego do swoich zaleznosci,
+      // by uruchomic sensory: pobranie obrazu z ACR, obrazy systemowe (MCR przez
+      // Front Door), uwierzytelnienie (AAD), storage srodowiska. KAZDY tag uslugi
+      // MUSI byc osobna regula (NSG nie pozwala laczyc tagow w jednym prefixie).
+      // Anty-pivot zostaje: brak wyjscia do dowolnego Internetu ani do podsieci VNet.
+      {
+        name: 'Allow-Outbound-ACR'
+        properties: {
+          description: 'Pobranie obrazow sensorow z Azure Container Registry.'
+          direction: 'Outbound'
+          access: 'Allow'
+          priority: 120
+          protocol: 'Tcp'
+          sourceAddressPrefix: dmzSubnetPrefix
+          sourcePortRange: '*'
+          destinationPortRange: '443'
+          destinationAddressPrefix: 'AzureContainerRegistry'
+        }
+      }
+      {
+        name: 'Allow-Outbound-MCR'
+        properties: {
+          description: 'Obrazy systemowe Container Apps z Microsoft Container Registry.'
+          direction: 'Outbound'
+          access: 'Allow'
+          priority: 130
+          protocol: 'Tcp'
+          sourceAddressPrefix: dmzSubnetPrefix
+          sourcePortRange: '*'
+          destinationPortRange: '443'
+          destinationAddressPrefix: 'MicrosoftContainerRegistry'
+        }
+      }
+      {
+        name: 'Allow-Outbound-FrontDoor'
+        properties: {
+          description: 'Zaleznosc MCR (dystrybucja przez Azure Front Door).'
+          direction: 'Outbound'
+          access: 'Allow'
+          priority: 140
+          protocol: 'Tcp'
+          sourceAddressPrefix: dmzSubnetPrefix
+          sourcePortRange: '*'
+          destinationPortRange: '443'
+          destinationAddressPrefix: 'AzureFrontDoor.FirstParty'
+        }
+      }
+      {
+        name: 'Allow-Outbound-AAD'
+        properties: {
+          description: 'Uwierzytelnienie Managed Identity (token AAD do ACR/Event Hubs).'
+          direction: 'Outbound'
+          access: 'Allow'
+          priority: 150
+          protocol: 'Tcp'
+          sourceAddressPrefix: dmzSubnetPrefix
+          sourcePortRange: '*'
+          destinationPortRange: '443'
+          destinationAddressPrefix: 'AzureActiveDirectory'
+        }
+      }
+      {
+        name: 'Allow-Outbound-Storage'
+        properties: {
+          description: 'Storage wymagany przez srodowisko Container Apps.'
+          direction: 'Outbound'
+          access: 'Allow'
+          priority: 160
+          protocol: 'Tcp'
+          sourceAddressPrefix: dmzSubnetPrefix
+          sourcePortRange: '*'
+          destinationPortRange: '443'
+          destinationAddressPrefix: 'Storage'
+        }
+      }
       {
         // ANTY-PIVOT: skompromitowany sensor nie wyjdzie z DMZ — blokujemy
         // caly pozostaly ruch wychodzacy (rowniez do VNet, czyli do warstw logic/data).
@@ -232,6 +307,16 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
           networkSecurityGroup: {
             id: dmzNsg.id
           }
+          // Delegacja wymagana przez Container Apps Environment (workload profiles)
+          // do integracji z VNet — sensory żyją logicznie w DMZ.
+          delegations: [
+            {
+              name: 'delegation-containerapps'
+              properties: {
+                serviceName: 'Microsoft.App/environments'
+              }
+            }
+          ]
         }
       }
       {

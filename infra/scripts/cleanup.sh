@@ -59,7 +59,7 @@ cat <<EOF
     wdrożeniu pod tą samą nazwą deploy może paść. Żeby zwolnić nazwę:
 
       az keyvault list-deleted -o table
-      az keyvault purge --name <nazwa-vaulta> --location westeurope
+      az keyvault purge --name <nazwa-vaulta> --location <region-z-list-deleted>
 
     (purge nie zadziała, jeśli vault miał włączone purge protection —
     wtedy trzeba odczekać okres retencji)

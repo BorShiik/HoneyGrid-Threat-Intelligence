@@ -49,8 +49,9 @@ param eventHubNamespaceName string = ''
 @description('Nazwa konta Storage (zakres roli Storage Blob Data Contributor).')
 param storageAccountName string = ''
 
-@description('Nazwa rejestru kontenerów ACR (zakres roli AcrPull).')
-param containerRegistryName string = ''
+// UWAGA: rola AcrPull dla sensora jest przypisywana w module app.bicep (musi
+// powstać PRZED Container Apps, a rbac.bicep wykonuje się po app). Dlatego nie
+// ma tu parametru ACR ani przypisania AcrPull.
 
 @description('Nazwa NSG strefy DMZ (zakres roli Network Contributor playbooka).')
 param dmzNsgName string = ''
@@ -92,10 +93,6 @@ resource eventHubNamespace 'Microsoft.EventHub/namespaces@2024-01-01' existing =
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
   name: storageAccountName
-}
-
-resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
-  name: containerRegistryName
 }
 
 resource dmzNsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' existing = {
@@ -150,19 +147,8 @@ resource sensorBlobDataContributor 'Microsoft.Authorization/roleAssignments@2022
   }
 }
 
-// Sensor -> AcrPull (zakres: KONKRETNY rejestr ACR)
-// TODO (Tydzień 2, Track A): Container Apps sensorów użyją tej tożsamości
-// (id-sensor) jako registry identity przy pull obrazów z ACR.
-resource sensorAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(sensorPrincipalId) && !empty(containerRegistryName)) {
-  name: guid(resourceGroup().id, containerRegistryName, sensorPrincipalId, roleAcrPull)
-  scope: containerRegistry
-  properties: {
-    principalId: sensorPrincipalId
-    roleDefinitionId: roleDefinitionIds.acrPull
-    principalType: principalType
-    description: 'HoneyGrid: Container Apps sensorow ciagna obrazy z ACR (bez admina).'
-  }
-}
+// Sensor -> AcrPull: przeniesione do modułu app.bicep (kolejność wdrożenia —
+// rola musi istnieć przed utworzeniem Container Apps; rbac wykonuje się za późno).
 
 // Analityk / CI -> Microsoft Sentinel Contributor (RG)
 resource analystSentinelContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(analystPrincipalId)) {

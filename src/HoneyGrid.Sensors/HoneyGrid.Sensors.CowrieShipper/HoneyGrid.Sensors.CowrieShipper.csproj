@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <!--
+    HoneyGrid.Sensors.CowrieShipper — most między logiem JSON Cowrie a Event Hub.
+    Sam Cowrie to kontener Pythona (obsługiwany przez inny zespół); ten worker .NET
+    śledzi jego plik logu (follow-file), mapuje zdarzenia na kontrakt HoneypotEvent
+    i publikuje je przez IEventSink.
+  -->
+
+  <PropertyGroup>
+    <UserSecretsId>dotnet-HoneyGrid.Sensors.CowrieShipper-1f0a9d6c-2b3e-4a78-9c1d-5e6f7a8b9c0d</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\HoneyGrid.Contracts\HoneyGrid.Contracts.csproj" />
+    <ProjectReference Include="..\HoneyGrid.Sensors.Common\HoneyGrid.Sensors.Common.csproj" />
+  </ItemGroup>
+
+</Project>

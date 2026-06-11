@@ -1,0 +1,42 @@
+# ============================================================================
+# HoneyGrid — baza poświadczeń Cowrie (userdb.txt)
+#
+# Format (jedna reguła na linię):  login:x:hasło
+#   - login / hasło mogą zawierać wildcardy:  * = dowolny ciąg
+#   - prefiks "!" przed hasłem = ODMÓW (deny) tej pary
+#   - kolejność ma znaczenie: pierwsza pasująca reguła wygrywa
+#
+# STRATEGIA (kluczowa decyzja badawcza):
+# Honeypot, który NIGDY nie wpuszcza, pokazuje tylko fazę brute-force. My
+# chcemy obserwować POST-EXPLOITATION (jakie komendy odpala atakujący po
+# zalogowaniu, skąd ściąga malware, jak persystuje). Dlatego CELOWO pozwalamy
+# zalogować się na kilka "słabych" par, które realnie są najczęściej zgadywane
+# przez botnety. Daje to wgląd w pełny łańcuch ataku, a TTY-nagranie sesji
+# trafia do Session Replay.
+#
+# Jednocześnie ODMAWIAMY oczywistych par "testowych/skanerowych" (np. takich,
+# którymi skanery sprawdzają, czy host wpuszcza WSZYSTKO — bo host, który
+# akceptuje dowolne hasło, sam się demaskuje jako honeypot).
+# ============================================================================
+
+# --- ODMOWA: wzorce demaskujące honeypot ----------------------------------
+# Gdyby Cowrie akceptował dowolne hasło dla root, skaner natychmiast uznałby
+# host za przynętę. Najpierw więc jawnie odmawiamy podejrzanych par testowych,
+# a dopiero potem (niżej) wpuszczamy wąską, wiarygodną listę.
+root:x:!password
+root:x:!honeypot
+root:x:!test
+admin:x:!admin123
+
+# --- ZEZWOLENIE: wąska lista realistycznie słabych poświadczeń -------------
+# To są poświadczenia z czołówki list haseł botnetów IoT/SSH. Wpuszczamy je,
+# żeby studiować zachowanie po wejściu.
+root:x:123456
+root:x:root
+admin:x:admin
+
+# --- DOMYŚLNIE: wszystko inne ODRZUĆ --------------------------------------
+# Każda inna para (login/hasło) jest odrzucana. Dzięki temu host NIE wygląda
+# jak "akceptuje wszystko" — zachowuje się jak serwer ze słabymi, ale
+# konkretnymi hasłami. Reguła łapie dowolny login i dowolne hasło.
+*:x:!*

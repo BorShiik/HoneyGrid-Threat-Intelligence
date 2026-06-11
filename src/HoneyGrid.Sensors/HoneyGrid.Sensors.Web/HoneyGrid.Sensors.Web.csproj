@@ -4,6 +4,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\HoneyGrid.Contracts\HoneyGrid.Contracts.csproj" />
+    <ProjectReference Include="..\HoneyGrid.Sensors.Common\HoneyGrid.Sensors.Common.csproj" />
   </ItemGroup>
 
 </Project>

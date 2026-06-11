@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    HoneyGrid.Sensors.Common — wspólna biblioteka producenta zdarzeń (strona producenta kontraktu).
+    Zawiera bezkluczowy (keyless) producent Event Hub oparty o DefaultAzureCredential
+    oraz asynchroniczny bufor (Channel) izolujący sensory od opóźnień sieciowych.
+  -->
+
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Wyłączamy ostrzeżenie o brakujących komentarzach XML dla typów wewnętrznych -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="1.21.0" />
+    <PackageReference Include="Azure.Messaging.EventHubs" Version="5.12.2" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.9" />
+    <PackageReference Include="Polly.Core" Version="8.7.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\HoneyGrid.Contracts\HoneyGrid.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -114,16 +114,21 @@ resource cosmosContainerResources 'Microsoft.DocumentDB/databaseAccounts/sqlData
     parent: cosmosDatabase
     name: container.name
     properties: {
-      resource: {
-        id: container.name
-        partitionKey: {
-          paths: [
-            container.partitionKey
-          ]
-          kind: 'Hash'
-        }
-        defaultTtl: container.defaultTtl
-      }
+      // defaultTtl dołączamy TYLKO dla kontenerów z TTL — Cosmos odrzuca
+      // jawny `defaultTtl: null` (BadRequest). Dla actors/iocs (bezterminowe)
+      // właściwość musi być całkowicie pominięta, stąd union z warunkiem.
+      resource: union(
+        {
+          id: container.name
+          partitionKey: {
+            paths: [
+              container.partitionKey
+            ]
+            kind: 'Hash'
+          }
+        },
+        container.defaultTtl != null ? { defaultTtl: container.defaultTtl } : {}
+      )
     }
   }
 ]

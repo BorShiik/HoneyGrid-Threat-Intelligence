@@ -1,66 +1,155 @@
 using HoneyGrid.Contracts;
+using HoneyGrid.Sensors.Common;
+using HoneyGrid.Sensors.Web;
 
 // HoneyGrid.Sensors.Web — honeypot webowy (Minimal API).
-// Udaje podatną aplikację (panel logowania WordPress / phpMyAdmin),
-// rejestruje każde żądanie HTTP jako HoneypotEvent i wysyła do Event Hub.
+// Udaje podatną aplikację (panele logowania WordPress / phpMyAdmin, wyciekłe pliki .env / .git),
+// rejestruje każde żądanie HTTP jako HoneypotEvent i wysyła do Event Hub poprzez IEventSink.
 
 var builder = WebApplication.CreateBuilder(args);
 
-// TODO (Track A, Tydzień 2): rejestracja EventHubProducerClient + kanał (Channel<HoneypotEvent>)
-//                            do asynchronicznej wysyłki zdarzeń.
-// TODO (Track A, Tydzień 2): konfiguracja sensorId / sensorType z appsettings / zmiennych środowiskowych.
+// Bezkluczowy producent Event Hub (kanał + shipper + sink). sensorId/sensorType/namespace
+// pochodzą z sekcji "HoneyGrid" appsettings.json lub zmiennych środowiskowych.
+builder.AddHoneyGridEventHub();
 
 var app = builder.Build();
 
+// Identyfikator sensora z konfiguracji (do healthz i budowy zdarzeń).
 var sensorId = builder.Configuration["HoneyGrid:SensorId"] ?? "web-local-01";
+var sink = app.Services.GetRequiredService<IEventSink>();
 
 // Endpoint zdrowia — używany przez sondy Container Apps / App Service.
 app.MapGet("/healthz", () => Results.Ok(new { status = "healthy", sensorId }));
 
-// Fałszywy panel logowania — klasyczny cel skanerów botnetów.
-app.MapGet("/wp-login.php", (HttpContext ctx) =>
+// ---- Trasy-pułapki (bait) — typowe cele skanerów i botnetów ----
+
+// Fałszywy panel logowania WordPress.
+app.MapGet("/wp-login.php", async (HttpContext ctx) =>
 {
-    // TODO (Track A, Tydzień 2): zwrócić realistyczny HTML panelu logowania WordPress.
-    LogRequest(ctx);
-    return Results.Content("<html><body><form method='post'>wp-login placeholder</form></body></html>", "text/html");
+    await EmitHttpRequest(ctx);
+    return Results.Content(DecoyContent.WpLoginHtml, "text/html");
 });
 
-app.MapPost("/wp-login.php", (HttpContext ctx) =>
+// Przechwycenie poświadczeń z formularza WordPress → zdarzenie login.failed.
+app.MapPost("/wp-login.php", async (HttpContext ctx) =>
 {
-    // TODO (Track A, Tydzień 2): przechwycić poświadczenia z formularza (CredentialPair)
-    //                            i opublikować zdarzenie login.failed do Event Hub.
-    LogRequest(ctx);
+    await EmitLoginAttempt(ctx);
     return Results.Unauthorized();
 });
 
-// Catch-all — każde inne żądanie też jest cennym sygnałem (skanowanie ścieżek).
-app.MapFallback((HttpContext ctx) =>
+// Wyciekłe pliki konfiguracyjne (częste cele automatów).
+app.MapGet("/.env", async (HttpContext ctx) =>
 {
-    LogRequest(ctx);
+    await EmitHttpRequest(ctx);
+    return Results.Text(DecoyContent.DotEnv, "text/plain");
+});
+
+app.MapGet("/.git/config", async (HttpContext ctx) =>
+{
+    await EmitHttpRequest(ctx);
+    return Results.Text(DecoyContent.GitConfig, "text/plain");
+});
+
+app.MapGet("/.aws/credentials", async (HttpContext ctx) =>
+{
+    await EmitHttpRequest(ctx);
+    return Results.Text(DecoyContent.AwsCredentials, "text/plain");
+});
+
+// Panele administracyjne.
+app.MapGet("/admin", async (HttpContext ctx) =>
+{
+    await EmitHttpRequest(ctx);
+    return Results.Content(DecoyContent.AdminHtml, "text/html");
+});
+
+app.MapPost("/admin", async (HttpContext ctx) =>
+{
+    await EmitLoginAttempt(ctx);
+    return Results.Unauthorized();
+});
+
+app.MapGet("/phpmyadmin", async (HttpContext ctx) =>
+{
+    await EmitHttpRequest(ctx);
+    return Results.Content(DecoyContent.PhpMyAdminHtml, "text/html");
+});
+
+// Spring Boot Actuator — wyciek konfiguracji.
+app.MapGet("/actuator/env", async (HttpContext ctx) =>
+{
+    await EmitHttpRequest(ctx);
+    return Results.Text(DecoyContent.ActuatorEnv, "application/json");
+});
+
+// Korzeń API — sugeruje istnienie chronionych zasobów.
+app.MapGet("/api", async (HttpContext ctx) =>
+{
+    await EmitHttpRequest(ctx);
+    return Results.Text(DecoyContent.ApiRoot, "application/json");
+});
+
+// Sondy .well-known (np. /.well-known/security.txt) — częsta rekonesansowa ścieżka.
+app.MapGet("/.well-known/{**rest}", async (HttpContext ctx) =>
+{
+    await EmitHttpRequest(ctx);
+    return Results.NotFound();
+});
+
+// Generyczny POST (dowolna inna ścieżka) — też może nieść poświadczenia.
+app.MapPost("/{**rest}", async (HttpContext ctx) =>
+{
+    await EmitLoginAttempt(ctx);
+    return Results.NotFound();
+});
+
+// Catch-all — każde inne żądanie to cenny sygnał (skanowanie ścieżek).
+app.MapFallback(async (HttpContext ctx) =>
+{
+    await EmitHttpRequest(ctx);
     return Results.NotFound();
 });
 
 app.Run();
 
-void LogRequest(HttpContext ctx)
-{
-    // Szkielet budowy zdarzenia — docelowo trafia do Event Hub, na razie tylko log.
-    var evt = new HoneypotEvent
-    {
-        Id = Guid.NewGuid(),
-        AttackerIp = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-        SensorId = sensorId,
-        SensorType = SensorType.Web,
-        Timestamp = DateTimeOffset.UtcNow,
-        EventType = EventType.HttpRequest,
-        Http = new HttpInfo
-        {
-            Method = ctx.Request.Method,
-            Path = ctx.Request.Path.Value,
-            UserAgent = ctx.Request.Headers.UserAgent.ToString(),
-        },
-    };
+// ---- Funkcje pomocnicze wiążące żądanie HTTP z IEventSink ----
 
-    // TODO (Track A, Tydzień 3): wysyłka do Event Hub zamiast logowania lokalnego.
-    app.Logger.LogInformation("Przechwycono żądanie: {Event}", HoneyGridJson.Serialize(evt));
+async Task EmitHttpRequest(HttpContext ctx)
+{
+    var evt = WebHoneypotLogic.BuildHttpRequestEvent(
+        sensorId,
+        ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        ctx.Request.Method,
+        ctx.Request.Path.Value,
+        ctx.Request.Headers.UserAgent.ToString(),
+        DateTimeOffset.UtcNow);
+
+    await sink.EnqueueAsync(evt, ctx.RequestAborted);
+    app.Logger.LogInformation("Przechwycono żądanie {Method} {Path}", ctx.Request.Method, ctx.Request.Path);
 }
+
+async Task EmitLoginAttempt(HttpContext ctx)
+{
+    CredentialPair? credentials = null;
+    if (ctx.Request.HasFormContentType)
+    {
+        var form = await ctx.Request.ReadFormAsync(ctx.RequestAborted);
+        credentials = WebHoneypotLogic.ExtractCredentials(
+            form.Select(kv => new KeyValuePair<string, string?>(kv.Key, kv.Value.ToString())));
+    }
+
+    var evt = WebHoneypotLogic.BuildLoginFailedEvent(
+        sensorId,
+        ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        ctx.Request.Path.Value,
+        ctx.Request.Headers.UserAgent.ToString(),
+        credentials,
+        DateTimeOffset.UtcNow);
+
+    await sink.EnqueueAsync(evt, ctx.RequestAborted);
+    app.Logger.LogInformation(
+        "Przechwycono próbę logowania: użytkownik={User}", credentials?.Username ?? "(brak)");
+}
+
+// Umożliwia testom integracyjnym (WebApplicationFactory) odwołanie się do klasy Program.
+public partial class Program;

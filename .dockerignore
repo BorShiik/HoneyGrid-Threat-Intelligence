@@ -1,0 +1,35 @@
+# ============================================================================
+# .dockerignore — kontekst budowania obrazów sensorów (kontekst = korzeń repo).
+#
+# KLUCZOWE: wykluczamy lokalne artefakty .NET (bin/obj). Skopiowanie ich do
+# obrazu nadpisuje wynik `dotnet restore` z kontenera lokalnym `project.assets.json`
+# (zbudowanym innym SDK / z innymi ścieżkami NuGet), przez co `publish --no-restore`
+# nie znajduje pakietów (błąd NETSDK1064). Dodatkowo drastycznie zmniejsza kontekst.
+# ============================================================================
+
+# Artefakty kompilacji .NET
+**/bin/
+**/obj/
+**/out/
+artifacts/
+TestResults/
+
+# Frontend (niepotrzebny w obrazach sensorów; ciężki node_modules)
+**/node_modules/
+**/dist/
+src/HoneyGrid.Web/
+
+# Git / IDE / narzędzia
+.git/
+.github/
+.idea/
+.vs/
+.vscode/
+
+# Infrastruktura, dokumentacja, raporty — nieużywane w obrazach
+infra/
+docs/
+
+# Różne
+**/*.user
+.DS_Store
