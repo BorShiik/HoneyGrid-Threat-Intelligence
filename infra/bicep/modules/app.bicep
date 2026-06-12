@@ -50,6 +50,49 @@ param eventHubNamespaceName string = ''
 @description('Nazwa Event Huba telemetrii (musi zgadzać się z data.bicep).')
 param eventHubName string = 'honeypot-events'
 
+// --- Tydzień 3+4, Track A: worker Ingestion/Enrichment ----------------------
+// UCZCIWY KOMPROMIS (Tydzień 4, decyzja zatwierdzona): subskrypcja studencka
+// (Azure for Students) NIE pozwala na dwa środowiska Container Apps w regionie
+// (błąd wdrożenia: MaxNumberOfRegionalEnvironmentsInSubExceeded). Worker
+// Ingestion przenosi się więc do JEDNEGO, wspólnego środowiska sensorów
+// (snet-dmz). Izolacja DMZ/logic przechodzi z poziomu SIECI na poziom
+// TOŻSAMOŚCI: osobne UAMI (id-sensor vs id-worker) i rozłączne role RBAC —
+// kompromitacja sensora nie daje uprawnień workera (sensor MI nie ma ról
+// danych Cosmos/odczytu EH). Kompromis udokumentowany, nie przemilczany;
+// powrót do dwóch środowisk możliwy na pełnej subskrypcji (snet-logic i NSG
+// logic zostają w network.bicep gotowe na ten scenariusz).
+
+@description('Resource ID User-Assigned Managed Identity workera Ingestion (z modułu security.bicep).')
+param workerIdentityId string = ''
+
+@description('Client ID tożsamości workera — DefaultAzureCredential wybiera właściwą UAMI.')
+param workerIdentityClientId string = ''
+
+@description('Principal ID tożsamości workera — przypisanie roli AcrPull (pull obrazu z ACR).')
+param workerIdentityPrincipalId string = ''
+
+@description('Nazwa konta Storage (z modułu data.bicep) — do złożenia URI blob service workera.')
+param storageAccountName string = ''
+
+@description('Nazwa namespace Service Bus (z modułu data.bicep) — do złożenia FQDN.')
+param serviceBusNamespaceName string = ''
+
+@description('Endpoint dokumentowy Cosmos DB (z modułu data.bicep).')
+param cosmosEndpoint string = ''
+
+// --- Tydzień 4, Track A: wysyłka Cowrie_CL przez Logs Ingestion API ----------
+// Trzy parametry z modułu sentinel.bicep (DCE/DCR). Domyślnie puste — moduł
+// kompiluje się w izolacji, a sink .NET przy pustych wartościach robi no-op.
+
+@description('Endpoint ingestii logów DCE (z modułu sentinel.bicep) — Logs Ingestion API.')
+param dceLogsIngestionEndpoint string = ''
+
+@description('ImmutableId reguły DCR cowrie (z modułu sentinel.bicep).')
+param dcrImmutableId string = ''
+
+@description('Nazwa strumienia wejściowego DCR (Custom-CowrieStream).')
+param dcrStreamName string = ''
+
 var suffix = uniqueString(resourceGroup().id)
 
 // FQDN namespace Event Hubs (AMQP/HTTPS) — przekazywany do sensorów jako zmienna
@@ -90,7 +133,42 @@ var registriesBlock = hasSensorIdentity
 var sensorCpu = json('0.25')
 var sensorMemory = '0.5Gi'
 
+// Analogiczne bloki dla workera Ingestion (Tydzień 3) — osobna tożsamość,
+// żeby kompromitacja sensora w DMZ nie dawała uprawnień warstwy logic.
+var hasWorkerIdentity = !empty(workerIdentityId)
+
+var workerIdentityBlock = hasWorkerIdentity
+  ? {
+      type: 'UserAssigned'
+      userAssignedIdentities: {
+        '${workerIdentityId}': {}
+      }
+    }
+  : {
+      type: 'None'
+    }
+
+var workerRegistriesBlock = hasWorkerIdentity
+  ? [
+      {
+        server: containerRegistry.properties.loginServer
+        identity: workerIdentityId
+      }
+    ]
+  : []
+
+// FQDN namespace Service Bus — pusty parametr => pusty FQDN (kompilacja w izolacji).
+var serviceBusFqdn = empty(serviceBusNamespaceName) ? '' : '${serviceBusNamespaceName}.servicebus.windows.net'
+// URI blob service workera (checkpointy EventProcessorClient + surowe zdarzenia).
+// az.environment().suffixes.storage = core.windows.net w chmurze publicznej —
+// bez hardkodowania sufiksu (linter no-hardcoded-env-urls); kwalifikator `az.`
+// jest konieczny, bo parametr `environment` przesłania funkcję environment().
+var blobServiceUri = empty(storageAccountName) ? '' : 'https://${storageAccountName}.blob.${az.environment().suffixes.storage}'
+
 var containerAppsEnvName = '${namePrefix}-${environment}-cae'
+// UWAGA (Tydzień 4): drugie środowisko `...cae-logic` USUNIĘTE — limit
+// subskrypcji (MaxNumberOfRegionalEnvironmentsInSubExceeded) wymusza JEDNO
+// środowisko Container Apps na region. Patrz komentarz przy parametrach workera.
 // ACR: tylko litery i cyfry, nazwa globalna.
 var containerRegistryName = toLower('${namePrefix}${environment}acr${suffix}')
 var staticWebAppName = '${namePrefix}-${environment}-swa'
@@ -155,6 +233,13 @@ resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2024-03-01'
 }
 
 // ---------------------------------------------------------------------------
+// (Tydzień 4) Tu stało DRUGIE środowisko Container Apps `...cae-logic`
+// (strefa LOGIC, Tydzień 3). USUNIĘTE: wdrożenie padło na limicie
+// MaxNumberOfRegionalEnvironmentsInSubExceeded — Azure for Students nie mieści
+// dwóch środowisk w regionie. Worker Ingestion działa teraz we wspólnym
+// środowisku sensorów (powyżej); izolację zapewniają osobne tożsamości
+// i rozłączne role RBAC, nie osobne podsieci.
+// ---------------------------------------------------------------------------
 // Azure Container Registry — Basic
 // ---------------------------------------------------------------------------
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
@@ -184,6 +269,20 @@ resource sensorAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = if
     roleDefinitionId: acrPullRoleId
     principalType: 'ServicePrincipal'
     description: 'HoneyGrid: Container Apps sensorow ciagna obrazy z ACR (bezkluczowo).'
+  }
+}
+
+// Worker MI -> AcrPull (zakres: TEN rejestr). Ta sama lekcja co przy sensorach:
+// rola MUSI powstać w module app PRZED utworzeniem Container App workera
+// (aplikacja ma `dependsOn: [workerAcrPull]`) — rbac.bicep wykonuje się za późno.
+resource workerAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(workerIdentityPrincipalId)) {
+  name: guid(containerRegistry.id, workerIdentityPrincipalId, 'AcrPull')
+  scope: containerRegistry
+  properties: {
+    principalId: workerIdentityPrincipalId
+    roleDefinitionId: acrPullRoleId
+    principalType: 'ServicePrincipal'
+    description: 'HoneyGrid: worker Ingestion ciagnie obraz z ACR (bezkluczowo).'
   }
 }
 
@@ -479,6 +578,85 @@ resource tcpListenerApp 'Microsoft.App/containerApps@2024-03-01' = {
   }
 }
 
+// ---------------------------------------------------------------------------
+// WORKER: ingestion — konsument Event Hubs + wzbogacanie (Tydzień 3+4, Track A)
+//
+// Worker tła: CZYTA telemetrię z Event Hubs (EventProcessorClient, checkpointy
+// w blob 'checkpoints'), ZAPISUJE surowe zdarzenia do blob 'raw', dokumenty
+// do Cosmos (rola płaszczyzny danych — data.bicep), WYSYŁA zlecenia
+// klasyfikacji do kolejki Service Bus 'ai-classify' oraz (Tydzień 4) pcha
+// wzbogacone zdarzenia do tabeli Cowrie_CL przez Logs Ingestion API
+// (DCE + DCR — moduł sentinel.bicep). Całość bezkluczowo przez id-worker.
+//
+// UCZCIWY KOMPROMIS (Tydzień 4): worker żyje we WSPÓLNYM środowisku sensorów
+// (snet-dmz), bo limit subskrypcji studenckiej nie mieści drugiego środowiska
+// (MaxNumberOfRegionalEnvironmentsInSubExceeded). Granicę DMZ/logic trzyma
+// teraz tożsamość (osobna UAMI + rozłączne role), nie podsieć.
+//
+// BEZ ingressu — to czysty proces tła, nie przyjmuje żadnych połączeń
+// (blok ingress celowo POMINIĘTY, nie pusty).
+//
+// Zmienne środowiskowe: worker .NET binduje sekcję konfiguracji "Ingestion" —
+// podwójne podkreślenie to separator sekcji (Sekcja__Wlasciwosc). Nazwy MUSZĄ
+// zgadzać się 1:1 z kontraktem konfiguracyjnym (realny błąd z Tygodnia 2:
+// literówka w prefiksie = pusta konfiguracja bez żadnego błędu wdrożenia).
+// Pozostałe ustawienia mają sensowne domyślne wartości w kodzie workera
+// (ConsumerGroup=$Default, kontenery checkpoints/raw, baza honeygrid/events,
+// kolejka ai-classify).
+// ---------------------------------------------------------------------------
+resource ingestionApp 'Microsoft.App/containerApps@2024-03-01' = {
+  name: '${namePrefix}-${environment}-ca-ingestion'
+  location: location
+  tags: tags
+  identity: workerIdentityBlock
+  // Rola AcrPull workera musi istnieć PRZED utworzeniem aplikacji (pull obrazu).
+  dependsOn: [workerAcrPull]
+  properties: {
+    // JEDNO środowisko (konsolidacja Tygodnia 4) — to samo co sensory.
+    managedEnvironmentId: containerAppsEnvironment.id
+    workloadProfileName: 'Consumption'
+    configuration: {
+      activeRevisionsMode: 'Single'
+      registries: workerRegistriesBlock
+      // Brak bloku ingress — worker tła nie nasłuchuje na żadnym porcie.
+    }
+    template: {
+      containers: [
+        {
+          name: 'ingestion'
+          image: '${containerRegistry.properties.loginServer}/honeygrid-ingestion:latest'
+          resources: {
+            cpu: sensorCpu
+            memory: sensorMemory
+          }
+          env: [
+            { name: 'Ingestion__EventHubFullyQualifiedNamespace', value: eventHubFqdn }
+            { name: 'Ingestion__EventHubName', value: eventHubName }
+            { name: 'Ingestion__BlobServiceUri', value: blobServiceUri }
+            { name: 'Ingestion__CosmosEndpoint', value: cosmosEndpoint }
+            { name: 'Ingestion__ServiceBusFullyQualifiedNamespace', value: serviceBusFqdn }
+            // Tydzień 4: Logs Ingestion API (DCE/DCR -> tabela Cowrie_CL).
+            // Nazwy MUSZĄ zgadzać się 1:1 z sekcją "Ingestion" w konfiguracji
+            // workera .NET — literówka = cicha, pusta konfiguracja (lekcja T2).
+            // Puste wartości => sink Sentinela robi no-op (kompilacja w izolacji).
+            { name: 'Ingestion__DceLogsIngestionEndpoint', value: dceLogsIngestionEndpoint }
+            { name: 'Ingestion__DcrImmutableId', value: dcrImmutableId }
+            { name: 'Ingestion__DcrStreamName', value: dcrStreamName }
+            { name: 'AZURE_CLIENT_ID', value: workerIdentityClientId }
+          ]
+        }
+      ]
+      scale: {
+        // Ciągły konsument strumienia: dokładnie JEDNA replika — zero replik
+        // gubiłoby zdarzenia (Basic = 1 dzień retencji), a wiele replik
+        // z $Default consumer group biłoby się o te same partycje.
+        minReplicas: 1
+        maxReplicas: 1
+      }
+    }
+  }
+}
+
 // TODO (Tydzień 3, Track B): api (REST nad Cosmos: events/actors/iocs dla dashboardu)
 // resource apiApp 'Microsoft.App/containerApps@2024-03-01' = { ... ingress internal,
 //   dostęp do Cosmos przez Managed Identity (bez kluczy) ... }
@@ -510,3 +688,8 @@ output webHoneypotAppFqdn string = webHoneypotApp.properties.configuration.ingre
 
 output tcpListenerAppName string = tcpListenerApp.name
 output tcpListenerAppFqdn string = tcpListenerApp.properties.configuration.ingress.fqdn
+
+// Worker Ingestion (Tydzień 3+4, Track A) — bez FQDN (brak ingressu).
+// Wyjście logicEnvironmentId USUNIĘTE (Tydzień 4) — drugie środowisko nie
+// istnieje; worker działa w containerAppsEnvironmentId (wyżej).
+output ingestionAppName string = ingestionApp.name

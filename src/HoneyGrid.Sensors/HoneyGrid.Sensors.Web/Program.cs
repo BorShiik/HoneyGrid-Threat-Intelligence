@@ -18,6 +18,13 @@ var app = builder.Build();
 var sensorId = builder.Configuration["HoneyGrid:SensorId"] ?? "web-local-01";
 var sink = app.Services.GetRequiredService<IEventSink>();
 
+// W Container Apps ruch przychodzi przez ingress (envoy) i RemoteIpAddress to wewnętrzny
+// adres proxy (100.100.0.x), a prawdziwy adres klienta niesie nagłówek X-Forwarded-For.
+// Podsieci, z których ufamy temu nagłówkowi, są konfigurowalne (HoneyGrid:TrustedProxyNetworks).
+var trustedProxyNetworks = WebHoneypotLogic.ParseTrustedNetworks(
+    builder.Configuration.GetSection("HoneyGrid:TrustedProxyNetworks").Get<string[]>()
+    ?? ["100.100.0.0/16"]);
+
 // Endpoint zdrowia — używany przez sondy Container Apps / App Service.
 app.MapGet("/healthz", () => Results.Ok(new { status = "healthy", sensorId }));
 
@@ -114,11 +121,22 @@ app.Run();
 
 // ---- Funkcje pomocnicze wiążące żądanie HTTP z IEventSink ----
 
+// Prawdziwy adres atakującego: X-Forwarded-For gdy połączenie przyszło z zaufanego proxy,
+// inaczej adres połączenia (zawsze bez prefiksu ::ffff:).
+string AttackerIp(HttpContext ctx)
+{
+    var remote = ctx.Connection.RemoteIpAddress;
+    return WebHoneypotLogic.ResolveAttackerIp(
+        ctx.Request.Headers["X-Forwarded-For"].ToString(),
+        remote?.ToString(),
+        WebHoneypotLogic.IsTrustedProxy(remote, trustedProxyNetworks));
+}
+
 async Task EmitHttpRequest(HttpContext ctx)
 {
     var evt = WebHoneypotLogic.BuildHttpRequestEvent(
         sensorId,
-        ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        AttackerIp(ctx),
         ctx.Request.Method,
         ctx.Request.Path.Value,
         ctx.Request.Headers.UserAgent.ToString(),
@@ -140,7 +158,7 @@ async Task EmitLoginAttempt(HttpContext ctx)
 
     var evt = WebHoneypotLogic.BuildLoginFailedEvent(
         sensorId,
-        ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        AttackerIp(ctx),
         ctx.Request.Path.Value,
         ctx.Request.Headers.UserAgent.ToString(),
         credentials,

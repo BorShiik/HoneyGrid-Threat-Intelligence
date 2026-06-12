@@ -31,6 +31,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HoneyGrid.Sensors.CowrieShi
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HoneyGrid.Sensors.Tests", "tests\HoneyGrid.Sensors.Tests\HoneyGrid.Sensors.Tests.csproj", "{8E9FA550-79D5-4D29-A5B7-63C471BA3BCE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HoneyGrid.Ingestion.Tests", "tests\HoneyGrid.Ingestion.Tests\HoneyGrid.Ingestion.Tests.csproj", "{8E92A832-52FD-4D15-95FC-68FE32863274}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -173,6 +175,18 @@ Global
 		{8E9FA550-79D5-4D29-A5B7-63C471BA3BCE}.Release|x64.Build.0 = Release|Any CPU
 		{8E9FA550-79D5-4D29-A5B7-63C471BA3BCE}.Release|x86.ActiveCfg = Release|Any CPU
 		{8E9FA550-79D5-4D29-A5B7-63C471BA3BCE}.Release|x86.Build.0 = Release|Any CPU
+		{8E92A832-52FD-4D15-95FC-68FE32863274}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8E92A832-52FD-4D15-95FC-68FE32863274}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8E92A832-52FD-4D15-95FC-68FE32863274}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8E92A832-52FD-4D15-95FC-68FE32863274}.Debug|x64.Build.0 = Debug|Any CPU
+		{8E92A832-52FD-4D15-95FC-68FE32863274}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{8E92A832-52FD-4D15-95FC-68FE32863274}.Debug|x86.Build.0 = Debug|Any CPU
+		{8E92A832-52FD-4D15-95FC-68FE32863274}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8E92A832-52FD-4D15-95FC-68FE32863274}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8E92A832-52FD-4D15-95FC-68FE32863274}.Release|x64.ActiveCfg = Release|Any CPU
+		{8E92A832-52FD-4D15-95FC-68FE32863274}.Release|x64.Build.0 = Release|Any CPU
+		{8E92A832-52FD-4D15-95FC-68FE32863274}.Release|x86.ActiveCfg = Release|Any CPU
+		{8E92A832-52FD-4D15-95FC-68FE32863274}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -190,5 +204,6 @@ Global
 		{09CF6469-9673-4163-B32B-651EDB8AFDCF} = {659458DF-543A-299B-5B52-F9CE6B25B319}
 		{6E1F8427-D307-463C-8FB9-F0A8C14D8CB0} = {659458DF-543A-299B-5B52-F9CE6B25B319}
 		{8E9FA550-79D5-4D29-A5B7-63C471BA3BCE} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{8E92A832-52FD-4D15-95FC-68FE32863274} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

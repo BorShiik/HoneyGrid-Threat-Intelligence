@@ -182,9 +182,55 @@ resource dmzNsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
           destinationAddressPrefix: 'Storage'
         }
       }
+      // -----------------------------------------------------------------------
+      // Tydzień 4 — UCZCIWY KOMPROMIS (konsolidacja do jednego środowiska):
+      // limit subskrypcji studenckiej (MaxNumberOfRegionalEnvironmentsInSub)
+      // wymusił przeniesienie workera Ingestion do środowiska sensorów w DMZ.
+      // Dwie poniższe reguły (ServiceBus, VirtualNetwork) OSŁABIAJĄ czysty
+      // anty-pivot DMZ: sieciowo sensory "widzą" teraz Private Endpoints
+      // w snet-data i namespace Service Bus. Kontrola KOMPENSACYJNA działa na
+      // poziomie tożsamości: sensor MI nie ma roli płaszczyzny danych Cosmos,
+      // odczytu Event Hubs ani Sendera Service Bus — bez tokenu RBAC sama
+      // łączność sieciowa nic atakującemu nie daje. Kompromis pod limit
+      // środowisk — udokumentowany, nie przemilczany. Jedna reguła = JEDEN
+      // tag usługi (lekcja z Tygodnia 2).
+      // -----------------------------------------------------------------------
+      {
+        name: 'Allow-Outbound-ServiceBus'
+        properties: {
+          description: 'Worker Ingestion (po konsolidacji w DMZ) wysyla zlecenia do Service Bus.'
+          direction: 'Outbound'
+          access: 'Allow'
+          priority: 170
+          protocol: 'Tcp'
+          sourceAddressPrefix: dmzSubnetPrefix
+          sourcePortRange: '*'
+          destinationAddressPrefix: 'ServiceBus'
+          destinationPortRanges: [
+            '443'
+            '5671'
+            '5672'
+          ]
+        }
+      }
+      {
+        name: 'Allow-Outbound-VNet'
+        properties: {
+          description: 'Worker (po konsolidacji): Private Endpoints Cosmos/Blob w snet-data + DNS w VNet.'
+          direction: 'Outbound'
+          access: 'Allow'
+          priority: 180
+          protocol: '*'
+          sourceAddressPrefix: dmzSubnetPrefix
+          sourcePortRange: '*'
+          destinationAddressPrefix: 'VirtualNetwork'
+          destinationPortRange: '*'
+        }
+      }
       {
         // ANTY-PIVOT: skompromitowany sensor nie wyjdzie z DMZ — blokujemy
-        // caly pozostaly ruch wychodzacy (rowniez do VNet, czyli do warstw logic/data).
+        // caly pozostaly ruch wychodzacy (rowniez do Internetu; do VNet od
+        // Tygodnia 4 przepuszcza regula Allow-Outbound-VNet — patrz kompromis wyzej).
         name: 'Deny-Outbound-All'
         properties: {
           description: 'Anty-pivot: domyslna blokada calego ruchu wychodzacego z DMZ.'
@@ -203,7 +249,13 @@ resource dmzNsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
 }
 
 // ---------------------------------------------------------------------------
-// NSG: logic — brak ruchu z Internetu, brak ruchu z DMZ
+// NSG: logic — brak ruchu z Internetu, brak ruchu z DMZ; outbound TYLKO do
+// jawnie wyliczonych zależności workera Ingestion (Tydzień 3) + Deny-All.
+//
+// UWAGA (Tydzień 4): po konsolidacji do JEDNEGO środowiska Container Apps
+// (limit MaxNumberOfRegionalEnvironmentsInSub) worker NIE żyje już w snet-logic.
+// NSG logic i delegacja podsieci zostają CELOWO nietknięte — przygotowane pod
+// przyszłe API Track B i/lub powrót do dwóch środowisk na pełnej subskrypcji.
 // ---------------------------------------------------------------------------
 resource logicNsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
   name: logicNsgName
@@ -236,6 +288,165 @@ resource logicNsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
           priority: 4000
           protocol: '*'
           sourceAddressPrefix: 'Internet'
+          sourcePortRange: '*'
+          destinationAddressPrefix: '*'
+          destinationPortRange: '*'
+        }
+      }
+      // ----------------------------------------------------------------------
+      // OUTBOUND (Tydzień 3): jawna lista wyjść workera Ingestion + zależności
+      // platformy Container Apps. KAŻDY tag usługi MUSI być osobną regułą —
+      // NSG odrzuca tablicę wielu tagów w jednym prefixie (lekcja z Tygodnia 2).
+      // Wiele PORTÓW w jednej regule jest natomiast dozwolone
+      // (destinationPortRanges). Na końcu Deny-Outbound-All: anty-pivot,
+      // druga strefa — kompromitacja warstwy logic nie otwiera Internetu.
+      // ----------------------------------------------------------------------
+      {
+        name: 'Allow-Outbound-VNet'
+        properties: {
+          description: 'Dostep do Private Endpoints Cosmos/Blob w snet-data oraz DNS w VNet.'
+          direction: 'Outbound'
+          access: 'Allow'
+          priority: 100
+          protocol: '*'
+          sourceAddressPrefix: logicSubnetPrefix
+          sourcePortRange: '*'
+          destinationAddressPrefix: 'VirtualNetwork'
+          destinationPortRange: '*'
+        }
+      }
+      {
+        name: 'Allow-Outbound-EventHub'
+        properties: {
+          description: 'Worker CZYTA telemetrie z Event Hubs (AMQP/HTTPS; Basic bez PE).'
+          direction: 'Outbound'
+          access: 'Allow'
+          priority: 110
+          protocol: 'Tcp'
+          sourceAddressPrefix: logicSubnetPrefix
+          sourcePortRange: '*'
+          destinationAddressPrefix: 'EventHub'
+          destinationPortRanges: [
+            '443'
+            '5671'
+            '5672'
+          ]
+        }
+      }
+      {
+        name: 'Allow-Outbound-ServiceBus'
+        properties: {
+          description: 'Worker WYSYLA zlecenia klasyfikacji do Service Bus (Basic bez PE).'
+          direction: 'Outbound'
+          access: 'Allow'
+          priority: 120
+          protocol: 'Tcp'
+          sourceAddressPrefix: logicSubnetPrefix
+          sourcePortRange: '*'
+          destinationAddressPrefix: 'ServiceBus'
+          destinationPortRanges: [
+            '443'
+            '5671'
+            '5672'
+          ]
+        }
+      }
+      {
+        name: 'Allow-Outbound-AAD'
+        properties: {
+          description: 'Uwierzytelnienie Managed Identity (tokeny AAD).'
+          direction: 'Outbound'
+          access: 'Allow'
+          priority: 130
+          protocol: 'Tcp'
+          sourceAddressPrefix: logicSubnetPrefix
+          sourcePortRange: '*'
+          destinationAddressPrefix: 'AzureActiveDirectory'
+          destinationPortRange: '443'
+        }
+      }
+      {
+        name: 'Allow-Outbound-ACR'
+        properties: {
+          description: 'Pobranie obrazu workera z Azure Container Registry.'
+          direction: 'Outbound'
+          access: 'Allow'
+          priority: 140
+          protocol: 'Tcp'
+          sourceAddressPrefix: logicSubnetPrefix
+          sourcePortRange: '*'
+          destinationAddressPrefix: 'AzureContainerRegistry'
+          destinationPortRange: '443'
+        }
+      }
+      {
+        name: 'Allow-Outbound-MCR'
+        properties: {
+          description: 'Obrazy systemowe Container Apps z Microsoft Container Registry.'
+          direction: 'Outbound'
+          access: 'Allow'
+          priority: 150
+          protocol: 'Tcp'
+          sourceAddressPrefix: logicSubnetPrefix
+          sourcePortRange: '*'
+          destinationAddressPrefix: 'MicrosoftContainerRegistry'
+          destinationPortRange: '443'
+        }
+      }
+      {
+        name: 'Allow-Outbound-FrontDoor'
+        properties: {
+          description: 'Zaleznosc MCR (dystrybucja obrazow przez Azure Front Door).'
+          direction: 'Outbound'
+          access: 'Allow'
+          priority: 160
+          protocol: 'Tcp'
+          sourceAddressPrefix: logicSubnetPrefix
+          sourcePortRange: '*'
+          destinationAddressPrefix: 'AzureFrontDoor.FirstParty'
+          destinationPortRange: '443'
+        }
+      }
+      {
+        name: 'Allow-Outbound-Storage'
+        properties: {
+          description: 'Blob (checkpointy/raw) i storage srodowiska Container Apps.'
+          direction: 'Outbound'
+          access: 'Allow'
+          priority: 170
+          protocol: 'Tcp'
+          sourceAddressPrefix: logicSubnetPrefix
+          sourcePortRange: '*'
+          destinationAddressPrefix: 'Storage'
+          destinationPortRange: '443'
+        }
+      }
+      {
+        name: 'Allow-Outbound-AzureMonitor'
+        properties: {
+          description: 'Logi konsoli workera do Log Analytics / Azure Monitor.'
+          direction: 'Outbound'
+          access: 'Allow'
+          priority: 180
+          protocol: 'Tcp'
+          sourceAddressPrefix: logicSubnetPrefix
+          sourcePortRange: '*'
+          destinationAddressPrefix: 'AzureMonitor'
+          destinationPortRange: '443'
+        }
+      }
+      {
+        // ANTY-PIVOT (druga strefa): poza jawnie dozwolonymi zaleznosciami
+        // warstwa logic NIE wychodzi nigdzie — kompromitacja workera nie daje
+        // atakujacemu otwartego Internetu.
+        name: 'Deny-Outbound-All'
+        properties: {
+          description: 'Anty-pivot: domyslna blokada calego pozostalego ruchu wychodzacego z logic.'
+          direction: 'Outbound'
+          access: 'Deny'
+          priority: 4000
+          protocol: '*'
+          sourceAddressPrefix: '*'
           sourcePortRange: '*'
           destinationAddressPrefix: '*'
           destinationPortRange: '*'
@@ -326,9 +537,25 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
           networkSecurityGroup: {
             id: logicNsg.id
           }
-          // Brak publicznych IP w warstwie logic — wymuszamy brak domyslnego
-          // dostepu wychodzacego; ruch wyjdzie wylacznie przez Private Link / NAT.
-          defaultOutboundAccess: false
+          // UCZCIWA ZMIANA (Tydzień 3): usunęliśmy `defaultOutboundAccess: false`.
+          // Platforma Container Apps wymaga wyjścia do Internetu (pobranie obrazów
+          // z ACR/MCR, uwierzytelnienie AAD), a Event Hubs i Service Bus w tierze
+          // Basic NIE mają Private Endpoint — worker musi do nich dotrzeć publicznym
+          // endpointem. Kontrolę najmniejszych uprawnień przejmuje NSG logic
+          // (jawne Allow per tag usługi + Deny-Outbound-All na końcu).
+          //
+          // Tydzień 4: worker przeniósł się do środowiska sensorów (snet-dmz) —
+          // limit subskrypcji studenckiej nie mieści drugiego środowiska.
+          // Delegacja zostaje CELOWO: przygotowana pod przyszłe API Track B
+          // lub powrót do dwóch środowisk na pełnej subskrypcji.
+          delegations: [
+            {
+              name: 'delegation-containerapps'
+              properties: {
+                serviceName: 'Microsoft.App/environments'
+              }
+            }
+          ]
         }
       }
       {
@@ -364,4 +591,5 @@ output dataSubnetId string = vnet.properties.subnets[2].id
 output dmzNsgId string = dmzNsg.id
 output dmzNsgName string = dmzNsg.name
 output logicNsgId string = logicNsg.id
+output logicNsgName string = logicNsg.name
 output dataNsgId string = dataNsg.id

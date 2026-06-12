@@ -1,0 +1,21 @@
+# Normalizacja końców linii — spójność między macOS/Linux a Windows.
+# Domyślnie auto, ale pliki wykonywalne i kod trzymamy w LF.
+* text=auto eol=lf
+
+# Skrypty bash MUSZĄ być LF (inaczej padają na Windows/WSL po checkout z CRLF).
+*.sh        text eol=lf
+Dockerfile  text eol=lf
+*.bicep     text eol=lf
+*.bicepparam text eol=lf
+
+# Pliki Windowsowe — CRLF.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binaria — bez normalizacji.
+*.png  binary
+*.jpg  binary
+*.pdf  binary
+*.bin  binary
+*.pickle binary

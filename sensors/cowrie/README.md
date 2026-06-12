@@ -50,6 +50,34 @@ Mapowanie portów publicznych na wewnętrzne robi ingress Container Apps
 > numerach. Szczegóły i wybrane obejście opisano w komentarzach
 > `infra/bicep/modules/app.bicep` (sekcja `UWAGA / TODO` przy aplikacji cowrie).
 
+## Znane ograniczenie: brak prawdziwego IP atakującego za TCP-ingress
+
+Ruch TCP do sensorów (Cowrie, tcp-listener) przechodzi przez ingress Container
+Apps (proxy envoy). Z punktu widzenia kontenera **adresem źródłowym połączenia
+jest wewnętrzny adres proxy (100.100.0.x), a nie realny adres atakującego** —
+to samo zjawisko potwierdzono na żywych danych w tabeli `Cowrie_CL`
+(Log Analytics).
+
+Dla sensora webowego problem rozwiązuje nagłówek `X-Forwarded-For`, który
+ingress dokleja do żądań HTTP (patrz `HoneyGrid.Sensors.Web`). **Dla czystego
+TCP takiego mechanizmu nie ma**: jedynym standardowym sposobem przekazania
+adresu klienta przez proxy TCP jest *proxy protocol* (HAProxy PROXY v1/v2),
+a ingress Azure Container Apps go **nie wspiera** — nie da się go włączyć po
+stronie envoya zarządzanego przez platformę, więc informacja o źródłowym IP
+ginie zanim połączenie dotrze do kontenera.
+
+Konsekwencje i stan na dziś:
+
+- pola `src_ip` w zdarzeniach Cowrie i tcp-listenera zawierają adres proxy
+  (100.100.0.x) — **nie nadają się do atrybucji ani geolokacji**,
+- korelację atakujących dla SSH/Telnet trzeba opierać na innych sygnałach
+  (poświadczenia, fingerprint klienta SSH/HASSH, komendy sesji),
+- pełnowartościowe źródłowe IP w tym projekcie daje sensor webowy (HTTP).
+
+Ewentualne wyjście wymagałoby zmiany platformy hostingu sensorów TCP
+(np. VM / kontener z publicznym IP zamiast Container Apps) — świadomie
+**nie obchodzimy** tego ograniczenia w obecnej architekturze.
+
 ## Jak CowrieShipper czyta cowrie.json
 
 Cowrie zapisuje każde zdarzenie jako jedną linię JSON do

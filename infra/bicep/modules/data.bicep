@@ -21,6 +21,11 @@ param namePrefix string
 param location string
 param tags object
 
+@description('''principalId tożsamości workera Ingestion (z modułu security.bicep) —
+przypisanie roli płaszczyzny danych Cosmos. Pusty => przypisanie pominięte
+(moduł kompiluje się i wdraża samodzielnie).''')
+param workerPrincipalId string = ''
+
 // Sufiks unikalności globalnej (Cosmos / Storage / EH / SB mają nazwy globalne).
 var suffix = uniqueString(resourceGroup().id)
 
@@ -134,7 +139,28 @@ resource cosmosContainerResources 'Microsoft.DocumentDB/databaseAccounts/sqlData
 ]
 
 // ---------------------------------------------------------------------------
-// Storage Account — blob (raw/tty/downloads) + Azure Files (cowrie)
+// Cosmos DB — rola PŁASZCZYZNY DANYCH dla workera Ingestion (Tydzień 3)
+//
+// UWAGA (częsta pułapka): to NIE jest rola ARM (Microsoft.Authorization/
+// roleAssignments) — Cosmos ma WŁASNY model RBAC płaszczyzny danych
+// (sqlRoleAssignments). Bez tego przypisania SDK dostaje 403 mimo posiadania
+// ról ARM na koncie; `disableLocalAuth: true` (wyżej) wymusza wyłącznie AAD,
+// więc nie ma awaryjnej furtki przez klucze.
+// 00000000-0000-0000-0000-000000000002 = wbudowana rola
+// "Cosmos DB Built-in Data Contributor" (odczyt + zapis dokumentów).
+// ---------------------------------------------------------------------------
+resource workerCosmosDataContributor 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = if (!empty(workerPrincipalId)) {
+  parent: cosmosAccount
+  name: guid(cosmosAccount.id, workerPrincipalId, 'data-contributor')
+  properties: {
+    roleDefinitionId: '${cosmosAccount.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002'
+    principalId: workerPrincipalId
+    scope: cosmosAccount.id
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Storage Account — blob (raw/tty/downloads/checkpoints) + Azure Files (cowrie)
 // ---------------------------------------------------------------------------
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: storageAccountName
@@ -163,9 +189,10 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01'
 }
 
 // Kontenery blob: raw (surowe zdarzenia), tty (nagrania sesji Cowrie),
-// downloads (złapane przez honeypot artefakty/malware — NIE uruchamiać!).
+// downloads (złapane przez honeypot artefakty/malware — NIE uruchamiać!),
+// checkpoints (offsety EventProcessorClient workera Ingestion — Tydzień 3).
 resource blobContainers 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = [
-  for containerName in ['raw', 'tty', 'downloads']: {
+  for containerName in ['raw', 'tty', 'downloads', 'checkpoints']: {
     parent: blobService
     name: containerName
     properties: {

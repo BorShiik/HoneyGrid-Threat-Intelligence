@@ -32,6 +32,7 @@ var suffix = uniqueString(resourceGroup().id)
 
 var sensorIdentityName = '${namePrefix}-${environment}-id-sensor'
 var playbookIdentityName = '${namePrefix}-${environment}-id-playbook'
+var workerIdentityName = '${namePrefix}-${environment}-id-worker'
 // Key Vault: nazwa globalna, max 24 znaki.
 var keyVaultName = '${namePrefix}-${environment}-kv-${take(suffix, 8)}'
 
@@ -51,6 +52,19 @@ resource sensorIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-1
 // ---------------------------------------------------------------------------
 resource playbookIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
   name: playbookIdentityName
+  location: location
+  tags: tags
+}
+
+// ---------------------------------------------------------------------------
+// Tożsamość zarządzana workera Ingestion/Enrichment (Tydzień 3, Track A)
+// Worker żyje w strefie LOGIC i bezkluczowo: CZYTA z Event Hubs, ZAPISUJE
+// checkpointy i surowe zdarzenia do Blob, ZAPISUJE dokumenty do Cosmos
+// (rola płaszczyzny danych — data.bicep) i WYSYŁA zlecenia do Service Bus.
+// Role ARM nadaje rbac.bicep; AcrPull nadaje app.bicep (przed Container App).
+// ---------------------------------------------------------------------------
+resource workerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
+  name: workerIdentityName
   location: location
   tags: tags
 }
@@ -91,6 +105,10 @@ output sensorIdentityClientId string = sensorIdentity.properties.clientId
 
 output playbookIdentityId string = playbookIdentity.id
 output playbookIdentityPrincipalId string = playbookIdentity.properties.principalId
+
+output workerIdentityId string = workerIdentity.id
+output workerIdentityPrincipalId string = workerIdentity.properties.principalId
+output workerIdentityClientId string = workerIdentity.properties.clientId
 
 output keyVaultId string = keyVault.id
 output keyVaultName string = keyVault.name

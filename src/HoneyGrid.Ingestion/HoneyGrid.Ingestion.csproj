@@ -1,18 +1,42 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
 
-  <!-- Pipeline ingestii: konsument Event Hub + wzbogacanie zdarzeń (GeoIP, TI) -->
+  <!--
+    HoneyGrid.Ingestion — worker ingestii + wzbogacania zdarzeń.
+    Konsumuje HoneypotEvent z Event Hub (EventProcessorClient + checkpointy w Blob),
+    wzbogaca (GeoIP, rDNS, AbuseIPDB) i rozsyła do Cosmos DB (hot path),
+    Blob Storage (surowy audyt) oraz Service Bus (kolejka klasyfikacji AI — Track B).
+    Architektura bezkluczowa: wszystkie klienty Azure używają DefaultAzureCredential.
+  -->
   <PropertyGroup>
     <UserSecretsId>dotnet-HoneyGrid.Ingestion-d6982863-71fc-4fe5-b523-b06db1ce8578</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Azure.Messaging.EventHubs" Version="5.12.2" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.7" />
-    <PackageReference Include="Serilog.Extensions.Hosting" Version="10.0.0" />
+    <PackageReference Include="Azure.Identity" Version="1.21.0" />
+    <PackageReference Include="Azure.Messaging.EventHubs.Processor" Version="5.12.2" />
+    <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.20.1" />
+    <!-- Logs Ingestion API (DCE + DCR) — wysyłka wzbogaconych zdarzeń do Microsoft Sentinel. -->
+    <PackageReference Include="Azure.Monitor.Ingestion" Version="1.2.0" />
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.29.0" />
+    <PackageReference Include="MaxMind.GeoIP2" Version="6.0.0" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.61.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.9" />
+    <!-- Cosmos SDK 3.x wymaga jawnego przypięcia Newtonsoft.Json >= 10.0.2
+         (mimo że serializujemy przez System.Text.Json — zob. CosmosEventWriter). -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="Polly.Core" Version="8.7.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\HoneyGrid.Contracts\HoneyGrid.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Opcjonalne bazy GeoLite2 (.mmdb) — katalog istnieje zawsze (.gitkeep),
+         pliki dodaje użytkownik wg geoip/README.md. Kopiowane obok binarki. -->
+    <None Include="geoip\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
