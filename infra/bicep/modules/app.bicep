@@ -374,6 +374,72 @@ resource staticWebApp 'Microsoft.Web/staticSites@2023-12-01' = if (deployStaticW
   }
 }
 
+// ---------------------------------------------------------------------------
+// Azure SignalR Service — backplane realtime (Track B, Tydzień 2)
+//
+// Dashboard subskrybuje /hubs/attacks; nowe zdarzenia trafiają na front bez
+// odświeżania. Usługa SignalR pełni rolę backplane'u: pozwala procesom innym
+// niż API (funkcja Change Feed) rozsyłać komunikaty do podłączonych klientów.
+//
+// SKU Free_F1 (1 jednostka, 20 połączeń, 20 tys. wiadomości/dzień) — wystarcza
+// na coursework/demo. Produkcyjnie: Standard_S1.
+//
+// ServiceMode:
+//   * 'Default'    — hub żyje w API (AddSignalR().AddAzureSignalR), backplane.
+//   * 'Serverless' — brak trwałego huba w API; broadcast przez output binding
+//                    [SignalROutput] w funkcji + endpoint negotiate w API.
+// Rekomendacja planu: 'Serverless' (mniej kodu dla Change Feed → SignalR).
+// Bezkluczowo: dostęp przez Managed Identity (rola SignalR App Server / Owner).
+// ---------------------------------------------------------------------------
+var signalRName = '${namePrefix}-${environment}-sigr-${suffix}'
+
+resource signalRService 'Microsoft.SignalRService/signalR@2024-03-01' = {
+  name: signalRName
+  location: location
+  tags: tags
+  sku: {
+    name: 'Free_F1'
+    tier: 'Free'
+    capacity: 1
+  }
+  kind: 'SignalR'
+  identity: {
+    type: 'SystemAssigned'
+  }
+  properties: {
+    // 'Serverless' rekomendowany (Track B): broadcast z funkcji przez binding.
+    // Zmień na 'Default', jeśli hub ma żyć w procesie API (AddAzureSignalR).
+    features: [
+      {
+        flag: 'ServiceMode'
+        value: 'Serverless'
+      }
+    ]
+    cors: {
+      allowedOrigins: [
+        '*'
+      ]
+    }
+  }
+}
+
+// Rola płaszczyzny danych SignalR dla tożsamości API (negotiate + broadcast).
+// 'SignalR App Server' = 420fcaa2-552c-430f-98ca-3264be4806c7.
+// Gdy powstanie host funkcji (klasyfikacja/Change Feed), nadać tę samą rolę
+// jego tożsamości — funkcja rozsyła zdarzenia do /hubs/attacks.
+resource apiSignalRAppServer 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(apiIdentityPrincipalId)) {
+  name: guid(signalRService.id, apiIdentityPrincipalId, 'signalr-app-server')
+  scope: signalRService
+  properties: {
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      '420fcaa2-552c-430f-98ca-3264be4806c7'
+    )
+    principalId: apiIdentityPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 // ===========================================================================
 // SENSORY — Container Apps (Tydzień 2, Track A)
 //
@@ -768,6 +834,8 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'HoneyGrid__CosmosEndpoint', value: cosmosEndpoint }
             { name: 'HoneyGrid__CosmosDatabase', value: 'honeygrid' }
             { name: 'HoneyGrid__BlobServiceUri', value: 'https://${storageAccountName}.blob.${az.environment().suffixes.storage}' }
+            // Endpoint Azure SignalR Service (backplane realtime, Track B).
+            { name: 'HoneyGrid__SignalREndpoint', value: 'https://${signalRService.properties.hostName}' }
             // DefaultAzureCredential wybiera właściwą UAMI (id-api) po Client ID.
             { name: 'AZURE_CLIENT_ID', value: apiIdentityClientId }
             // ASP.NET — nasłuch na 8080 (zgodny z targetPort ingressu).
@@ -801,6 +869,10 @@ output staticWebAppDefaultHostname string = deployStaticWebApp ? staticWebApp!.p
 
 output appInsightsId string = appInsights.id
 output appInsightsConnectionString string = appInsights.properties.ConnectionString
+
+// Azure SignalR Service (Track B, realtime) — nazwa + endpoint dla API/funkcji.
+output signalRName string = signalRService.name
+output signalREndpoint string = 'https://${signalRService.properties.hostName}'
 
 // Sensory (Tydzień 2, Track A) — nazwy i FQDN do weryfikacji / demo.
 output cowrieAppName string = cowrieApp.name

@@ -28,21 +28,23 @@ describe('Powłoka aplikacji (smoke test)', () => {
     expect(screen.getByRole('link', { name: /Aktorzy zagrożeń/ })).toBeInTheDocument();
   });
 
-  it('pokazuje stan połączenia SignalR (domyślnie „Rozłączono")', () => {
-    renderApp();
-    expect(screen.getByTestId('connection-status')).toHaveTextContent('Rozłączono');
-  });
-
-  it('renderuje stronę pulpitu z odznaką „W budowie"', () => {
+  it('renderuje stronę pulpitu (zaimplementowaną, bez odznaki „W budowie")', () => {
     renderApp('/');
     expect(screen.getByRole('heading', { name: 'Pulpit' })).toBeInTheDocument();
-    expect(screen.getByText(/W budowie — Tydzień 1/)).toBeInTheDocument();
+    expect(screen.queryByText(/W budowie/)).not.toBeInTheDocument();
   });
 
-  it('renderuje stronę strumienia i pobiera dane z zamockowanego /api/feed', async () => {
+  it('przechodzi w stan „Połączono" po starcie strumienia na żywo', async () => {
+    renderApp('/');
+    // The live-attacks hook drives the global connection state via the
+    // client-side simulator in dev/test mode (no WebSocket backend).
+    expect(await screen.findByText('Połączono')).toBeInTheDocument();
+  });
+
+  it('renderuje stronę strumienia na żywo z listą zdarzeń', async () => {
     renderApp('/strumien');
-    expect(screen.getByRole('heading', { name: 'Strumień na żywo' })).toBeInTheDocument();
-    const list = await screen.findByRole('list', { name: 'Lista ostatnich zdarzeń' });
+    expect(screen.getByRole('heading', { name: /Strumień na żywo/ })).toBeInTheDocument();
+    const list = await screen.findByRole('list', { name: 'Strumień zdarzeń na żywo' });
     expect(list.children.length).toBeGreaterThan(0);
   });
 });

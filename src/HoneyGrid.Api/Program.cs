@@ -1,6 +1,9 @@
 using Azure.Identity;
 using Azure.Storage.Blobs;
+using HoneyGrid.Api.Features.Actors;
+using HoneyGrid.Api.Features.Feed;
 using HoneyGrid.Api.Features.Sessions;
+using HoneyGrid.Api.Features.Stats;
 using HoneyGrid.Api.Features.Stix;
 using HoneyGrid.Api.Hubs;
 using HoneyGrid.Contracts;
@@ -64,6 +67,12 @@ app.UseCors(corsPolicy);
 app.MapHealthChecks("/health");
 
 app.MapGet("/", () => Results.Ok(new { service = "HoneyGrid.Api", status = "ok" }));
+
+// --- Track B: API dashboardu (feed, statystyki, aktorzy) ---
+// Wszystkie wymagają zarejestrowanego CosmosClient (tylko odczyt).
+app.MapFeedEndpoints();
+app.MapStatsEndpoints();
+app.MapActorEndpoints();
 
 // --- Tydzień 7, Track A: killer-ficzy ---
 // STIX 2.1 / IoC feed (silnik HoneyGrid.Stix) — wymaga zarejestrowanego CosmosClient.

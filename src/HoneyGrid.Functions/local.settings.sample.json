@@ -1,0 +1,14 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+
+    "CosmosDatabase": "honeygrid",
+
+    "__comment_cosmos": "Identity-based connection for the CosmosDBTrigger AND the injected CosmosClient. Use `az login` locally; Managed Identity in Azure. No keys.",
+    "CosmosConnection__accountEndpoint": "https://<twoje-konto>.documents.azure.com:443/",
+
+    "APPLICATIONINSIGHTS_CONNECTION_STRING": "<opcjonalnie — connection string App Insights>"
+  }
+}
