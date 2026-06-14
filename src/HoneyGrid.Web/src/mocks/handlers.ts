@@ -1,6 +1,12 @@
 import { http, HttpResponse } from 'msw';
 import type { CredentialStats, GeoStats, StatsOverview, ThreatActor } from '@/types/api';
-import { generateFeed, generateSessionReplay, generateStixBundle, MOCK_ACTORS } from './generator';
+import {
+  generateFeed,
+  generateSessionReplay,
+  generateStixBundle,
+  MOCK_ACTORS,
+  MOCK_SESSIONS,
+} from './generator';
 
 /** MSW request handlers covering the full HoneyGrid REST contract. */
 export const handlers = [
@@ -100,6 +106,9 @@ export const handlers = [
     }
     return HttpResponse.json(actor);
   }),
+
+  // GET /api/sessions
+  http.get('/api/sessions', () => HttpResponse.json(MOCK_SESSIONS)),
 
   // GET /api/sessions/{id}/replay
   http.get('/api/sessions/:id/replay', ({ params }) =>

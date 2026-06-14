@@ -30,6 +30,18 @@ bez ich wsparcia (Szwecja/Norwegia/Polska), zostaw false — Track A (sieć, sen
 Event Hub, Cosmos, Sentinel) wdraża się w pełni. Track B włączy ten flag w swoim regionie.''')
 param deployTrackB bool = false
 
+@description('''Tydzień 6 (SOAR): objectId service principala "Azure Security Insights"
+w TYM tenancie — dostaje rolę Sentinel Automation Contributor, by automation rule
+mogła uruchamiać playbooka. Pobierz: az ad sp list --filter "appId eq
+'98785600-1bb7-4fb9-b9fa-19afe2c8a360'" --query "[0].id" -o tsv. Pusty => reguła
+automatyzacji nie zadziała (playbook można wtedy odpalić ręcznie z incydentu).''')
+param sentinelAutomationPrincipalId string = ''
+
+@description('''Tydzień 6 (SOAR): URL webhooka HTTP do powiadomień o blokadzie
+(np. z webhook.site lub własny endpoint). Pusty => krok powiadomienia pominięty.
+Wybór projektu zamiast Teams (Teams wymaga interaktywnej zgody OAuth).''')
+param notifyWebhookUrl string = ''
+
 // ---------------------------------------------------------------------------
 // Zmienne wspólne
 // ---------------------------------------------------------------------------
@@ -37,7 +49,7 @@ param deployTrackB bool = false
 var tags = {
   project: 'HoneyGrid'
   environment: environment
-  track: 'week4-sentinel'
+  track: 'week7-killer-features'
 }
 
 var resourceGroupName = '${namePrefix}-${environment}-rg'
@@ -112,6 +124,8 @@ module data 'modules/data.bicep' = {
     // Rola płaszczyzny danych Cosmos dla workera Ingestion (Tydzień 3) —
     // sqlRoleAssignments żyje przy koncie Cosmos, więc przypisuje ją data.bicep.
     workerPrincipalId: security.outputs.workerIdentityPrincipalId
+    // Tydzień 7: host API — rola płaszczyzny danych Cosmos TYLKO DO ODCZYTU.
+    apiPrincipalId: security.outputs.apiIdentityPrincipalId
     // Private Endpoints dla Cosmos/Blob/Key Vault tworzy moduł privatelink
     // (niżej). TODO (Tydzień 2, Track A+B): publicNetworkAccess: 'Disabled'
     // na Cosmos/Storage po zweryfikowaniu działania Private Endpoints.
@@ -160,8 +174,49 @@ module app 'modules/app.bicep' = {
     dceLogsIngestionEndpoint: sentinel.outputs.dceLogsIngestionEndpoint
     dcrImmutableId: sentinel.outputs.dcrImmutableId
     dcrStreamName: sentinel.outputs.dcrStreamName
+    // Tydzień 7: host API (Session Replay + STIX/IoC) — osobna tożsamość id-api
+    // (read-only), Container App ze scale-to-zero we wspólnym środowisku.
+    apiIdentityId: security.outputs.apiIdentityId
+    apiIdentityClientId: security.outputs.apiIdentityClientId
+    apiIdentityPrincipalId: security.outputs.apiIdentityPrincipalId
     // Static Web App tylko gdy region Track B na to pozwala (patrz deployTrackB).
     deployStaticWebApp: deployTrackB
+  }
+}
+
+// Tydzień 5 (Track A): Workbook — "dorosły" pulpit operacyjny SOC w Sentinelu,
+// wdrażany jako kod (IaC), nie klikany w portalu. Wizualizuje Cowrie_CL.
+module workbook 'modules/workbook.bicep' = {
+  scope: rg
+  name: 'workbook-${environment}'
+  params: {
+    environment: environment
+    namePrefix: namePrefix
+    location: location
+    tags: tags
+    logAnalyticsWorkspaceId: sentinel.outputs.logAnalyticsWorkspaceId
+  }
+}
+
+// Tydzień 6 (Track A): SOAR — playbook (Logic App) auto-mitygacji. Triggerowany
+// przez automation rule Sentinela przy utworzeniu incydentu: blokada IP w NSG dmz
+// + dopisanie do listy EDL + powiadomienie webhook + komentarz/zamknięcie incydentu.
+// Bezkluczowo: używa istniejącej tożsamości playbooka (role z Tygodnia 1 + 6).
+module soar 'modules/soar.bicep' = {
+  scope: rg
+  name: 'soar-${environment}'
+  params: {
+    environment: environment
+    namePrefix: namePrefix
+    location: location
+    tags: tags
+    playbookIdentityId: security.outputs.playbookIdentityId
+    dmzNsgName: network.outputs.dmzNsgName
+    storageAccountName: data.outputs.storageAccountName
+    workspaceName: sentinel.outputs.logAnalyticsWorkspaceName
+    notifyWebhookUrl: notifyWebhookUrl
+    // SP Sentinela — bez niego automation rule się NIE wdraża (playbook ręcznie).
+    sentinelAutomationPrincipalId: sentinelAutomationPrincipalId
   }
 }
 
@@ -209,16 +264,19 @@ module rbac 'modules/rbac.bicep' = {
     playbookPrincipalId: security.outputs.playbookIdentityPrincipalId
     // Worker Ingestion (Tydzień 3): EH Receiver + Blob Contributor + SB Sender.
     workerPrincipalId: security.outputs.workerIdentityPrincipalId
-    // TODO (Tydzień 4-5, Track A+B): analityk i tożsamość Sentinela są
-    // specyficzne dla tenanta — ustawiane per wdrożenie (param / az cli).
+    // Analityk — specyficzny dla tenanta, opcjonalny (pusty => brak).
     analystPrincipalId: ''
-    automationPrincipalId: ''
+    // Tydzień 6: SP "Azure Security Insights" dostaje Sentinel Automation
+    // Contributor (RG), by automation rule mogła uruchamiać playbooka SOAR.
+    automationPrincipalId: sentinelAutomationPrincipalId
     // Zawężone zakresy ról danych (Tydzień 1+3, Track A):
     eventHubNamespaceName: data.outputs.eventHubNamespaceName
     storageAccountName: data.outputs.storageAccountName
     serviceBusNamespaceName: data.outputs.serviceBusNamespaceName
     // AcrPull jest w module app (kolejność wdrożenia) — tu nie przekazujemy ACR.
     dmzNsgName: network.outputs.dmzNsgName
+    // Tydzień 7: host API dostaje Storage Blob Data Reader (odczyt nagrań TTY).
+    apiPrincipalId: security.outputs.apiIdentityPrincipalId
   }
 }
 
@@ -279,3 +337,15 @@ output playbookIdentityPrincipalId string = security.outputs.playbookIdentityPri
 output cosmosPrivateEndpointId string = privatelink.outputs.cosmosPrivateEndpointId
 output blobPrivateEndpointId string = privatelink.outputs.blobPrivateEndpointId
 output keyVaultPrivateEndpointId string = privatelink.outputs.keyVaultPrivateEndpointId
+
+// Detekcja + wizualizacja (Tydzień 5, Track A).
+output alertRuleNames array = sentinel.outputs.alertRuleNames
+output workbookId string = workbook.outputs.workbookId
+
+// SOAR (moduł soar — Tydzień 6, Track A).
+output playbookName string = soar.outputs.playbookName
+output automationRuleName string = soar.outputs.automationRuleName
+
+// Host API killer-ficzy (moduł app — Tydzień 7, Track A).
+output apiAppName string = app.outputs.apiAppName
+output apiAppFqdn string = app.outputs.apiAppFqdn

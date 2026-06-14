@@ -80,6 +80,20 @@ param serviceBusNamespaceName string = ''
 @description('Endpoint dokumentowy Cosmos DB (z modułu data.bicep).')
 param cosmosEndpoint string = ''
 
+// --- Tydzień 7, Track A: host API (killer-ficzy: Session Replay + STIX/IoC) --
+// Osobna tożsamość id-api TYLKO DO ODCZYTU (Cosmos Data Reader + Blob Data
+// Reader) — kompromitacja API nie daje zapisu do danych. Puste => moduł
+// kompiluje się w izolacji (brak bloku identity/rejestru, brak Container App).
+
+@description('Resource ID User-Assigned Managed Identity hosta API (z modułu security.bicep).')
+param apiIdentityId string = ''
+
+@description('Client ID tożsamości API — DefaultAzureCredential wybiera właściwą UAMI.')
+param apiIdentityClientId string = ''
+
+@description('Principal ID tożsamości API — przypisanie roli AcrPull (pull obrazu z ACR).')
+param apiIdentityPrincipalId string = ''
+
 // --- Tydzień 4, Track A: wysyłka Cowrie_CL przez Logs Ingestion API ----------
 // Trzy parametry z modułu sentinel.bicep (DCE/DCR). Domyślnie puste — moduł
 // kompiluje się w izolacji, a sink .NET przy pustych wartościach robi no-op.
@@ -164,6 +178,31 @@ var serviceBusFqdn = empty(serviceBusNamespaceName) ? '' : '${serviceBusNamespac
 // bez hardkodowania sufiksu (linter no-hardcoded-env-urls); kwalifikator `az.`
 // jest konieczny, bo parametr `environment` przesłania funkcję environment().
 var blobServiceUri = empty(storageAccountName) ? '' : 'https://${storageAccountName}.blob.${az.environment().suffixes.storage}'
+
+// Analogiczne bloki dla hosta API (Tydzień 7) — osobna tożsamość id-api
+// (tylko-do-odczytu). Pusty apiIdentityId => brak bloku identity/rejestru
+// (kompilacja w izolacji bez wstrzykiwania pustego klucza).
+var hasApiIdentity = !empty(apiIdentityId)
+
+var apiIdentityBlock = hasApiIdentity
+  ? {
+      type: 'UserAssigned'
+      userAssignedIdentities: {
+        '${apiIdentityId}': {}
+      }
+    }
+  : {
+      type: 'None'
+    }
+
+var apiRegistriesBlock = hasApiIdentity
+  ? [
+      {
+        server: containerRegistry.properties.loginServer
+        identity: apiIdentityId
+      }
+    ]
+  : []
 
 var containerAppsEnvName = '${namePrefix}-${environment}-cae'
 // UWAGA (Tydzień 4): drugie środowisko `...cae-logic` USUNIĘTE — limit
@@ -283,6 +322,21 @@ resource workerAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = if
     roleDefinitionId: acrPullRoleId
     principalType: 'ServicePrincipal'
     description: 'HoneyGrid: worker Ingestion ciagnie obraz z ACR (bezkluczowo).'
+  }
+}
+
+// API MI -> AcrPull (zakres: TEN rejestr). Ta sama lekcja co przy sensorach
+// i workerze: rola MUSI powstać w module app PRZED utworzeniem Container App
+// hosta API (aplikacja ma `dependsOn: [apiAcrPull]`) — rbac.bicep wykonuje się
+// za późno (zależy od app).
+resource apiAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(apiIdentityPrincipalId)) {
+  name: guid(containerRegistry.id, apiIdentityPrincipalId, 'AcrPull')
+  scope: containerRegistry
+  properties: {
+    principalId: apiIdentityPrincipalId
+    roleDefinitionId: acrPullRoleId
+    principalType: 'ServicePrincipal'
+    description: 'HoneyGrid: host API ciagnie obraz honeygrid-api z ACR (bezkluczowo).'
   }
 }
 
@@ -657,9 +711,78 @@ resource ingestionApp 'Microsoft.App/containerApps@2024-03-01' = {
   }
 }
 
-// TODO (Tydzień 3, Track B): api (REST nad Cosmos: events/actors/iocs dla dashboardu)
-// resource apiApp 'Microsoft.App/containerApps@2024-03-01' = { ... ingress internal,
-//   dostęp do Cosmos przez Managed Identity (bez kluczy) ... }
+// ---------------------------------------------------------------------------
+// HOST API: ca-api — killer-ficzy Track A (Tydzień 7)
+//
+// Dwa endpointy demonstracyjne (wstępnie host Track A, docelowo zlewa się
+// z API Track B):
+//   * GET /api/iocs/stix          — eksport bundle STIX 2.1 (HoneyGrid.Stix),
+//   * GET /api/sessions/{id}/replay — odtworzenie sesji TTY (HoneyGrid.Replay).
+// Host CZYTA Cosmos (events/iocs/sessions) i nagrania TTY z Blob bezkluczowo
+// przez id-api (Cosmos Data Reader + Blob Data Reader — least privilege).
+//
+// SKALOWANIE — INACZEJ NIŻ SENSORY/WORKER: API jest sterowane ŻĄDANIAMI,
+// więc minReplicas = 0 (scale-to-zero). Gdy nikt nie pyta o STIX/replay,
+// nie płacimy za nic — w przeciwieństwie do sensorów (zawsze-on, nasłuch
+// 24/7) i workera (ciągły konsument strumienia). Pierwsze żądanie po
+// uśpieniu ma zimny start — akceptowalne dla API analitycznego/demo.
+//
+// Ingress HTTP external (dashboard SOC + curl na demo), targetPort 8080,
+// transport 'auto' (platforma terminuje HTTPS, kontener słucha HTTP na 8080).
+// ---------------------------------------------------------------------------
+resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
+  name: '${namePrefix}-${environment}-ca-api'
+  location: location
+  tags: tags
+  identity: apiIdentityBlock
+  // Rola AcrPull API musi istnieć PRZED utworzeniem aplikacji (pull obrazu).
+  dependsOn: [apiAcrPull]
+  properties: {
+    // JEDNO środowisko (konsolidacja Tygodnia 4) — to samo co sensory i worker.
+    managedEnvironmentId: containerAppsEnvironment.id
+    workloadProfileName: 'Consumption'
+    configuration: {
+      activeRevisionsMode: 'Single'
+      registries: apiRegistriesBlock
+      ingress: {
+        external: true
+        transport: 'auto'
+        targetPort: 8080
+        // Publiczne 80/443 obsługuje warstwa ingress (HTTPS terminowany przez
+        // platformę). Kontener słucha czystego HTTP na 8080.
+      }
+    }
+    template: {
+      containers: [
+        {
+          name: 'api'
+          image: '${containerRegistry.properties.loginServer}/honeygrid-api:latest'
+          resources: {
+            cpu: sensorCpu
+            memory: sensorMemory
+          }
+          env: [
+            // API binduje sekcję konfiguracji "HoneyGrid" (prefiks sekcji,
+            // podwójne podkreślenie = separator). Endpoint Cosmos + baza,
+            // URI blob service (nagrania TTY) — wszystko czytane bezkluczowo.
+            { name: 'HoneyGrid__CosmosEndpoint', value: cosmosEndpoint }
+            { name: 'HoneyGrid__CosmosDatabase', value: 'honeygrid' }
+            { name: 'HoneyGrid__BlobServiceUri', value: 'https://${storageAccountName}.blob.${az.environment().suffixes.storage}' }
+            // DefaultAzureCredential wybiera właściwą UAMI (id-api) po Client ID.
+            { name: 'AZURE_CLIENT_ID', value: apiIdentityClientId }
+            // ASP.NET — nasłuch na 8080 (zgodny z targetPort ingressu).
+            { name: 'ASPNETCORE_URLS', value: 'http://+:8080' }
+          ]
+        }
+      ]
+      scale: {
+        // Scale-to-zero: API sterowane żądaniami (inaczej niż sensory/worker).
+        minReplicas: 0
+        maxReplicas: 2
+      }
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Wyjścia
@@ -693,3 +816,7 @@ output tcpListenerAppFqdn string = tcpListenerApp.properties.configuration.ingre
 // Wyjście logicEnvironmentId USUNIĘTE (Tydzień 4) — drugie środowisko nie
 // istnieje; worker działa w containerAppsEnvironmentId (wyżej).
 output ingestionAppName string = ingestionApp.name
+
+// Host API (Tydzień 7, Track A) — nazwa + FQDN ingressu (curl /health, /api/iocs/stix).
+output apiAppName string = apiApp.name
+output apiAppFqdn string = apiApp.properties.configuration.ingress.fqdn

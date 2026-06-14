@@ -5,6 +5,7 @@ import type {
   GeoStats,
   HoneypotEvent,
   SessionReplay,
+  SessionSummary,
   StatsOverview,
   StixBundle,
   ThreatActor,
@@ -18,6 +19,7 @@ export const queryKeys = {
   statsCredentials: ['stats', 'credentials'] as const,
   actors: ['actors'] as const,
   actor: (id: string) => ['actors', id] as const,
+  sessions: ['sessions'] as const,
   sessionReplay: (id: string) => ['sessions', id, 'replay'] as const,
   iocsStix: ['iocs', 'stix'] as const,
 };
@@ -72,6 +74,14 @@ export function useActor(id: string) {
     queryKey: queryKeys.actor(id),
     queryFn: () => apiGet<ThreatActor>(`/api/actors/${id}`),
     enabled: id.length > 0,
+  });
+}
+
+/** GET /api/sessions */
+export function useSessions() {
+  return useQuery({
+    queryKey: queryKeys.sessions,
+    queryFn: () => apiGet<SessionSummary[]>('/api/sessions'),
   });
 }
 

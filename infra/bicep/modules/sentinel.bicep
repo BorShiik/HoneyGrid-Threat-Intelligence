@@ -208,9 +208,217 @@ resource workerDcrMetricsPublisher 'Microsoft.Authorization/roleAssignments@2022
   }
 }
 
-// TODO (Tydzień 5, Track B): reguły analityczne Sentinela
-// (Microsoft.SecurityInsights/alertRules) — brute-force, nowe IOC, anomalie GeoIP
-// oraz automation rules wpinające playbooki (Logic Apps).
+// ---------------------------------------------------------------------------
+// Reguły analityczne Sentinela (Tydzień 5) — domknięcie TODO z Tygodnia 0.
+//
+// Filozofia: reguły RATE-BASED (progi na agregatach KQL) zamiast per-event —
+// honeypot generuje setki zdarzeń login.failed na godzinę i alert na każde
+// z nich to czysty alert fatigue. Zamiast tego: 4 wzorce ataku z progami.
+//
+// Zapytania KQL żyją w osobnych plikach (infra/sentinel/queries/*.kql —
+// jedyne źródło prawdy, ładowane przez loadTextContent w czasie kompilacji),
+// żeby dało się je czytać/stroić bez grzebania w Bicepie. UWAGA: błąd
+// składni KQL wywala CAŁY deployment (lekcja z transformKql wyżej).
+//
+// Mapowanie MITRE ATT&CK (tactics/techniques) — wymóg planu §12; encje
+// (entityMappings: IP / Account / Host) to WEJŚCIE dla SOAR (Tydzień 6):
+// playbooki Logic Apps dostaną z incydentu gotową encję IP do blokady/wzbogacenia.
+//
+// Grupowanie incydentów (incidentConfiguration.groupingConfiguration):
+// 260 zdarzeń Hydry = JEDEN incydent zgrupowany po encji, a nie 260 alertów —
+// to wprost metryka MTTD / alert fatigue z planu §12.
+//
+// TODO (Tydzień 6): automation rules wpinające playbooki (Logic Apps).
+// ---------------------------------------------------------------------------
+
+// (a) Brute force z jednego IP — T1110, próg >15 nieudanych prób / 5 min.
+resource ruleBruteForceSingleIp 'Microsoft.SecurityInsights/alertRules@2023-11-01' = {
+  scope: logAnalyticsWorkspace
+  name: guid(logAnalyticsWorkspace.id, 'rule-brute-force')
+  kind: 'Scheduled'
+  properties: {
+    displayName: 'HoneyGrid — atak brute force z jednego IP'
+    description: 'Ponad 15 nieudanych logowań z jednego adresu IP w oknie 5 minut (zautomatyzowany brute force, np. Hydra). Próg wstępny — do strojenia po realnym ruchu. MITRE: T1110.001.'
+    severity: 'Medium'
+    enabled: true
+    query: loadTextContent('../../sentinel/queries/brute-force-single-ip.kql')
+    queryFrequency: 'PT5M'
+    queryPeriod: 'PT1H' // okno >= bin(5m); 1h daje zapas na opóźnienia ingestii
+    triggerOperator: 'GreaterThan'
+    triggerThreshold: 0
+    suppressionEnabled: false
+    suppressionDuration: 'PT1H'
+    tactics: ['CredentialAccess']
+    techniques: ['T1110']
+    entityMappings: [
+      {
+        entityType: 'IP'
+        fieldMappings: [
+          { identifier: 'Address', columnName: 'AttackerIp' }
+        ]
+      }
+    ]
+    incidentConfiguration: {
+      createIncident: true
+      groupingConfiguration: {
+        enabled: true
+        reopenClosedIncident: false
+        lookbackDuration: 'PT5H'
+        matchingMethod: 'Selected'
+        groupByEntities: ['IP'] // jeden atakujący IP = jeden incydent
+      }
+    }
+    eventGroupingSettings: {
+      aggregationKind: 'SingleAlert'
+    }
+  }
+  dependsOn: [sentinelOnboarding, cowrieTable]
+}
+
+// (b) Rozproszony brute force na jedno konto — T1110, >5 IP / 1 h na konto.
+resource ruleDistributedBruteForce 'Microsoft.SecurityInsights/alertRules@2023-11-01' = {
+  scope: logAnalyticsWorkspace
+  name: guid(logAnalyticsWorkspace.id, 'rule-distributed-brute-force')
+  kind: 'Scheduled'
+  properties: {
+    displayName: 'HoneyGrid — rozproszony brute force na jedno konto'
+    description: 'Ponad 5 unikalnych adresów IP atakuje to samo konto w oknie 1 godziny (botnet / proxy rotation). Próg wstępny — do strojenia po realnym ruchu. MITRE: T1110.001.'
+    severity: 'Medium'
+    enabled: true
+    query: loadTextContent('../../sentinel/queries/distributed-brute-force.kql')
+    queryFrequency: 'PT1H'
+    queryPeriod: 'PT1H'
+    triggerOperator: 'GreaterThan'
+    triggerThreshold: 0
+    suppressionEnabled: false
+    suppressionDuration: 'PT1H'
+    tactics: ['CredentialAccess']
+    techniques: ['T1110']
+    entityMappings: [
+      {
+        entityType: 'Account'
+        fieldMappings: [
+          { identifier: 'Name', columnName: 'Username' }
+        ]
+      }
+    ]
+    incidentConfiguration: {
+      createIncident: true
+      groupingConfiguration: {
+        enabled: true
+        reopenClosedIncident: false
+        lookbackDuration: 'PT5H'
+        matchingMethod: 'Selected'
+        groupByEntities: ['Account'] // jedno atakowane konto = jeden incydent
+      }
+    }
+    eventGroupingSettings: {
+      aggregationKind: 'SingleAlert'
+    }
+  }
+  dependsOn: [sentinelOnboarding, cowrieTable]
+}
+
+// (c) Password spraying — T1110, >8 kont / 1 h, <3 próby na konto.
+resource rulePasswordSpraying 'Microsoft.SecurityInsights/alertRules@2023-11-01' = {
+  scope: logAnalyticsWorkspace
+  name: guid(logAnalyticsWorkspace.id, 'rule-password-spraying')
+  kind: 'Scheduled'
+  properties: {
+    displayName: 'HoneyGrid — password spraying z jednego IP'
+    description: 'Jeden adres IP próbuje ponad 8 różnych kont w oknie 1 godziny, średnio poniżej 3 prób na konto (spraying popularnych haseł, omijanie progów per-konto). Progi wstępne — do strojenia po realnym ruchu. MITRE: T1110.003.'
+    severity: 'Medium'
+    enabled: true
+    query: loadTextContent('../../sentinel/queries/password-spraying.kql')
+    queryFrequency: 'PT1H'
+    queryPeriod: 'PT1H'
+    triggerOperator: 'GreaterThan'
+    triggerThreshold: 0
+    suppressionEnabled: false
+    suppressionDuration: 'PT1H'
+    tactics: ['CredentialAccess']
+    techniques: ['T1110']
+    entityMappings: [
+      {
+        entityType: 'IP'
+        fieldMappings: [
+          { identifier: 'Address', columnName: 'AttackerIp' }
+        ]
+      }
+    ]
+    incidentConfiguration: {
+      createIncident: true
+      groupingConfiguration: {
+        enabled: true
+        reopenClosedIncident: false
+        lookbackDuration: 'PT5H'
+        matchingMethod: 'Selected'
+        groupByEntities: ['IP']
+      }
+    }
+    eventGroupingSettings: {
+      aggregationKind: 'SingleAlert'
+    }
+  }
+  dependsOn: [sentinelOnboarding, cowrieTable]
+}
+
+// (d) Udane logowanie po fali nieudanych — T1078, HIGH: bot wszedł do
+// honeypota i zaraz zacznie post-exploitation (najcenniejszy sygnał projektu).
+resource ruleSuccessAfterFailures 'Microsoft.SecurityInsights/alertRules@2023-11-01' = {
+  scope: logAnalyticsWorkspace
+  name: guid(logAnalyticsWorkspace.id, 'rule-success-after-failures')
+  kind: 'Scheduled'
+  properties: {
+    displayName: 'HoneyGrid — udane logowanie po serii nieudanych prób'
+    description: 'Udane logowanie z adresu IP, który wcześniej miał co najmniej 5 nieudanych prób w oknie 1 godziny — atakujący "wszedł" do honeypota, spodziewany post-exploitation. Próg wstępny — do strojenia po realnym ruchu. MITRE: T1078.'
+    severity: 'High'
+    enabled: true
+    query: loadTextContent('../../sentinel/queries/success-after-failures.kql')
+    queryFrequency: 'PT1H'
+    queryPeriod: 'PT1H'
+    triggerOperator: 'GreaterThan'
+    triggerThreshold: 0
+    suppressionEnabled: false
+    suppressionDuration: 'PT1H'
+    tactics: ['InitialAccess', 'Persistence']
+    techniques: ['T1078']
+    entityMappings: [
+      {
+        entityType: 'IP'
+        fieldMappings: [
+          { identifier: 'Address', columnName: 'AttackerIp' }
+        ]
+      }
+      {
+        entityType: 'Account'
+        fieldMappings: [
+          { identifier: 'Name', columnName: 'Username' }
+        ]
+      }
+      {
+        entityType: 'Host'
+        fieldMappings: [
+          { identifier: 'HostName', columnName: 'SensorId' }
+        ]
+      }
+    ]
+    incidentConfiguration: {
+      createIncident: true
+      groupingConfiguration: {
+        enabled: true
+        reopenClosedIncident: false
+        lookbackDuration: 'PT5H'
+        matchingMethod: 'Selected'
+        groupByEntities: ['IP']
+      }
+    }
+    eventGroupingSettings: {
+      aggregationKind: 'SingleAlert'
+    }
+  }
+  dependsOn: [sentinelOnboarding, cowrieTable]
+}
 
 // ---------------------------------------------------------------------------
 // Wyjścia
@@ -228,3 +436,11 @@ output dcrImmutableId string = cowrieDcr.properties.immutableId
 output dceLogsIngestionEndpoint string = dataCollectionEndpoint.properties.logsIngestion.endpoint
 output dcrStreamName string = cowrieStreamName
 output cowrieTableName string = cowrieTable.name
+
+// Tydzień 5 — nazwy wyświetlane reguł analitycznych (do skryptu weryfikacyjnego).
+output alertRuleNames array = [
+  ruleBruteForceSingleIp.properties.displayName
+  ruleDistributedBruteForce.properties.displayName
+  rulePasswordSpraying.properties.displayName
+  ruleSuccessAfterFailures.properties.displayName
+]

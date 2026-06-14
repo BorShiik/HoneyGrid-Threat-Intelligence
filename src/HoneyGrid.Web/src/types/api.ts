@@ -124,6 +124,18 @@ export interface ThreatActor {
 
 /* ── Session replay ────────────────────────────────────────────────── */
 
+export interface SessionSummary {
+  sessionId: string;
+  attackerIp: string;
+  sensorId: string;
+  startedAt: string;
+  durationMs: number;
+  commandCount: number;
+  hasTty: boolean;
+  country: string;
+  countryName: string;
+}
+
 export interface SessionReplayFrame {
   /** Offset from session start, in milliseconds. */
   offsetMs: number;

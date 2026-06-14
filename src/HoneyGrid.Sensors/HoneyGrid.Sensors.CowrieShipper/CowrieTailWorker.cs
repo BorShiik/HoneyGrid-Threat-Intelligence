@@ -18,6 +18,7 @@ namespace HoneyGrid.Sensors.CowrieShipper;
 /// </summary>
 public sealed class CowrieTailWorker(
     IEventSink sink,
+    TtyBlobUploader ttyUploader,
     IOptions<CowrieShipperOptions> options,
     ILogger<CowrieTailWorker> logger) : BackgroundService
 {
@@ -114,6 +115,34 @@ public sealed class CowrieTailWorker(
             return;
         }
 
+        // Domknięcie sesji z referencją TTY → skopiuj binarny plik nagrania do Blob.
+        // Pole "ttylog" w linii to lokalna ścieżka pliku na współdzielonym wolumenie.
+        if (evt.TtyRef is not null && evt.SessionId is not null)
+        {
+            var ttylogPath = ExtractTtylogPath(line);
+            if (!string.IsNullOrEmpty(ttylogPath))
+            {
+                await ttyUploader.UploadAsync(evt.SessionId, ttylogPath, stoppingToken);
+            }
+        }
+
         await sink.EnqueueAsync(evt, stoppingToken);
+    }
+
+    /// <summary>Wyłuskuje lokalną ścieżkę pliku TTY z pola "ttylog" linii JSON Cowrie.</summary>
+    private static string? ExtractTtylogPath(string jsonLine)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(jsonLine);
+            return doc.RootElement.TryGetProperty("ttylog", out var el) &&
+                   el.ValueKind == System.Text.Json.JsonValueKind.String
+                ? el.GetString()
+                : null;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
     }
 }

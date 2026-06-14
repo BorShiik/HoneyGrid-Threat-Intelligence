@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    HoneyGrid.Replay — czysta biblioteka parsera nagrań TTY (format Cowrie "ttylog").
+    BEZ zależności od Azure — w pełni testowalna offline. Wykorzystywana przez
+    HoneyGrid.Api (endpoint /api/sessions/{id}/replay) do odtwarzania sesji atakującego.
+  -->
+
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+</Project>

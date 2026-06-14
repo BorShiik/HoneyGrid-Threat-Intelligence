@@ -1,0 +1,31 @@
+// ============================================================================
+// HoneyGrid — detekcja: udane logowanie po fali nieudanych prób (Tydzień 5)
+// MITRE ATT&CK: T1078 (Valid Accounts), taktyki: Initial Access, Persistence
+// Severity: HIGH — to NIE jest szum: udany login po serii porażek oznacza,
+// że bot "wszedł" do honeypota (Cowrie celowo wpuszcza po N próbach) i za
+// chwilę zacznie post-exploitation (pobieranie malware, komendy 'command') —
+// najcenniejszy moment obserwacyjny całego projektu.
+//
+// Logika (wzorzec let + join):
+//   1. failures: IP-y z >= 5 nieudanymi logowaniami w oknie zapytania
+//      (okno = queryPeriod reguły, PT1H — celowo BEZ bin(), żeby uniknąć
+//      konfliktu kolumn TimeGenerated przy join; let projektuje wyłącznie
+//      AttackerIp + FailedCount, więc join nie duplikuje kolumn czasu).
+//   2. join kind=inner z udanymi logowaniami (login.success) po AttackerIp —
+//      ten sam adres najpierw się dobijał, potem wszedł.
+//
+// Próg (>= 5 porażek przed sukcesem): WSTĘPNY — do strojenia po realnym
+// ruchu (Tydzień 5, dzień 4). UWAGA: brak żywego workspace w trakcie
+// pisania — zapytanie zweryfikowane konstrukcyjnie, nie na danych.
+//
+// Końcowa projekcja MUSI zawierać AttackerIp (encja IP), Username (encja
+// Account) i SensorId (encja Host) — entityMappings reguły analitycznej.
+// ============================================================================
+let failures = Cowrie_CL
+    | where EventType == 'login.failed'
+    | summarize FailedCount = count() by AttackerIp
+    | where FailedCount >= 5;
+Cowrie_CL
+| where EventType == 'login.success'
+| join kind=inner failures on AttackerIp
+| project TimeGenerated, AttackerIp, Username, SensorId, FailedCount

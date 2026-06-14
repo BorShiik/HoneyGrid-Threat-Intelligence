@@ -26,6 +26,11 @@ przypisanie roli płaszczyzny danych Cosmos. Pusty => przypisanie pominięte
 (moduł kompiluje się i wdraża samodzielnie).''')
 param workerPrincipalId string = ''
 
+@description('''principalId tożsamości hosta API (z modułu security.bicep, Tydzień 7) —
+przypisanie roli płaszczyzny danych Cosmos TYLKO DO ODCZYTU. Pusty => przypisanie
+pominięte (moduł kompiluje się i wdraża samodzielnie).''')
+param apiPrincipalId string = ''
+
 // Sufiks unikalności globalnej (Cosmos / Storage / EH / SB mają nazwy globalne).
 var suffix = uniqueString(resourceGroup().id)
 
@@ -160,6 +165,26 @@ resource workerCosmosDataContributor 'Microsoft.DocumentDB/databaseAccounts/sqlR
 }
 
 // ---------------------------------------------------------------------------
+// Cosmos DB — rola PŁASZCZYZNY DANYCH dla hosta API (Tydzień 7, killer-ficzy)
+//
+// API tylko CZYTA (least privilege) — rola płaszczyzny danych Cosmos
+// (sqlRoleAssignments), NIE ARM. Endpointy STIX/IoC i Session Replay odczytują
+// dokumenty events/iocs/sessions; API nie tworzy ani nie modyfikuje niczego,
+// więc dostaje wbudowaną rolę "Cosmos DB Built-in Data Reader"
+// (00000000-0000-0000-0000-000000000001), a NIE Contributor jak worker.
+// Bez tego przypisania SDK dostaje 403 (disableLocalAuth: true wyklucza klucze).
+// ---------------------------------------------------------------------------
+resource apiCosmosDataReader 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = if (!empty(apiPrincipalId)) {
+  parent: cosmosAccount
+  name: guid(cosmosAccount.id, apiPrincipalId, 'data-reader')
+  properties: {
+    roleDefinitionId: '${cosmosAccount.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000001'
+    principalId: apiPrincipalId
+    scope: cosmosAccount.id
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Storage Account — blob (raw/tty/downloads/checkpoints) + Azure Files (cowrie)
 // ---------------------------------------------------------------------------
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
@@ -190,9 +215,13 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01'
 
 // Kontenery blob: raw (surowe zdarzenia), tty (nagrania sesji Cowrie),
 // downloads (złapane przez honeypot artefakty/malware — NIE uruchamiać!),
-// checkpoints (offsety EventProcessorClient workera Ingestion — Tydzień 3).
+// checkpoints (offsety EventProcessorClient workera Ingestion — Tydzień 3),
+// edl = External Dynamic List (lista zablokowanych IP, którą zapisuje playbook
+// SOAR w Tygodniu 6 i którą odpytują firewalle perymetryczne).
+// UWAGA: edl zostaje publicAccess 'None' — nie osłabiamy storage; prawdziwy EDL
+// wystawia się przez SAS/CDN, a nie przez anonimowy dostęp do kontenera (poza zakresem).
 resource blobContainers 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = [
-  for containerName in ['raw', 'tty', 'downloads', 'checkpoints']: {
+  for containerName in ['raw', 'tty', 'downloads', 'checkpoints', 'edl']: {
     parent: blobService
     name: containerName
     properties: {

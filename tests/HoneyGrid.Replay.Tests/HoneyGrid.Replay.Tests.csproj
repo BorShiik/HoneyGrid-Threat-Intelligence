@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Testy jednostkowe parsera TTY (format Cowrie ttylog). Czysta logika — bez Azure. -->
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\HoneyGrid.Replay\HoneyGrid.Replay.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Binarna próbka TTY kopiowana do katalogu wyjściowego dla testu round-trip. -->
+    <None Include="..\..\fixtures\tty\sample.tty" Link="fixtures\sample.tty">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

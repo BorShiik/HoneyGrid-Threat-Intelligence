@@ -94,7 +94,7 @@ public sealed class CowrieEventMapperTests
 
         Assert.NotNull(evt);
         Assert.Equal(EventType.Connect, evt!.EventType);
-        Assert.Equal("blob://tty/a1b2c3d4e5f6.bin", evt.TtyRef);
+        Assert.Equal("tty/a1b2c3d4e5f6.tty", evt.TtyRef);
     }
 
     [Fact]

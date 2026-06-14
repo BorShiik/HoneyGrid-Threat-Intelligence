@@ -123,9 +123,10 @@ public static class CowrieEventMapper
                         var ttylog = GetString(root, "ttylog");
                         if (!string.IsNullOrEmpty(ttylog) && session is not null)
                         {
-                            // TODO (Track A, Tydzień 3): faktyczne skopiowanie pliku TTY do Blob Storage.
-                            //                            Na razie ustawiamy jedynie referencję (placeholder).
-                            b.TtyRef = $"blob://tty/{session}.bin";
+                            // Logiczna referencja "tty/<sessionId>.tty". Faktyczny upload
+                            // binarnego pliku TTY do Blob Storage wykonuje TtyBlobUploader
+                            // w workerze (gdy skonfigurowano BlobServiceUri).
+                            b.TtyRef = TtyBlobNaming.TtyRef("tty", session);
                         }
                     });
 

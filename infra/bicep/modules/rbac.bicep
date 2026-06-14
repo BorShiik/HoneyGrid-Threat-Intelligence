@@ -15,10 +15,13 @@
 // | MI workera (id-worker)           | Cosmos DB Built-in Data Contributor       | konto Cosmos (data.bicep)| zapis dokumentów — rola PŁASZCZYZNY DANYCH (sqlRoleAssignments), nie ARM |
 // | MI workera (id-worker)           | Monitoring Metrics Publisher              | DCR cowrie (sentinel.bicep)| wysyłka Cowrie_CL przez Logs Ingestion API (T4) |
 // | Analityk / pipeline CI           | Microsoft Sentinel Contributor            | Resource Group      | zarządzanie regułami analitycznymi, watchlisty |
-// | Sentinel (tożsamość usługi)      | Microsoft Sentinel Automation Contributor | Resource Group      | uruchamianie playbooków z automation rules     |
+// | Sentinel (tożsamość usługi)      | Microsoft Sentinel Automation Contributor | Resource Group      | uruchamianie playbooków z automation rules (podpięte w Tygodniu 6) |
 // | Analityk / pipeline CI           | Logic App Contributor                     | RG (playbooki)      | tworzenie i edycja playbooków                  |
 // | MI playbooka (id-playbook)       | Microsoft Sentinel Responder              | Resource Group      | aktualizacja incydentów (status, komentarze)   |
 // | MI playbooka (id-playbook)       | Network Contributor                       | NSG dmz (KONKRETNY) | playbook dopisuje regułę blokującą IP do NSG   |
+// | MI playbooka (id-playbook)       | Storage Blob Data Contributor             | konto Storage (EDL) | playbook zapisuje listę zablokowanych IP (Tydzień 6) |
+// | MI API (id-api)                  | Cosmos DB Built-in Data Reader            | konto Cosmos        | API czyta events/iocs/sessions (Tydzień 7) |
+// | MI API (id-api)                  | Storage Blob Data Reader                  | konto Storage       | API czyta nagrania TTY (Session Replay) |
 //
 // Zasada: ŻADNYCH kluczy ani connection stringów — wyłącznie Managed Identity
 // + powyższe role. Role spoza modelu ARM żyją w innych modułach: Cosmos DB
@@ -44,6 +47,9 @@ param playbookPrincipalId string = ''
 
 @description('principalId tożsamości zarządzanej workera Ingestion (Tydzień 3).')
 param workerPrincipalId string = ''
+
+@description('principalId tożsamości zarządzanej hosta API (Tydzień 7) — odczyt nagrań TTY z Blob.')
+param apiPrincipalId string = ''
 
 @description('Typ principala (ServicePrincipal dla MI, User dla analityka).')
 @allowed(['ServicePrincipal', 'User', 'Group'])
@@ -80,6 +86,7 @@ var roleNetworkContributor = '4d97b98b-1d4f-4787-a291-c67834d212e7' // Network C
 var roleEventHubsDataSender = '2b629674-e913-4c01-ae53-ef4638d8f975' // Azure Event Hubs Data Sender
 var roleEventHubsDataReceiver = 'a638d3c7-ab3a-418d-83e6-5f17a39d4fde' // Azure Event Hubs Data Receiver
 var roleStorageBlobDataContributor = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' // Storage Blob Data Contributor
+var roleStorageBlobDataReader = '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1' // Storage Blob Data Reader
 var roleServiceBusDataSender = '69a216fc-b8fb-44d8-bc22-1f3c2cd27a39' // Azure Service Bus Data Sender
 var roleAcrPull = '7f951dda-4ed3-4680-a7ca-43fe172d538d' // AcrPull
 
@@ -94,6 +101,7 @@ var roleDefinitionIds = {
   eventHubsDataSender: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleEventHubsDataSender)
   eventHubsDataReceiver: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleEventHubsDataReceiver)
   storageBlobDataContributor: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleStorageBlobDataContributor)
+  storageBlobDataReader: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleStorageBlobDataReader)
   serviceBusDataSender: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleServiceBusDataSender)
   acrPull: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleAcrPull)
 }
@@ -271,6 +279,41 @@ resource playbookNetworkContributor 'Microsoft.Authorization/roleAssignments@202
   }
 }
 
+// MI playbooka -> Storage Blob Data Contributor (zakres: KONKRETNE konto Storage)
+// Tydzień 6 (SOAR): playbook dopisuje zablokowane IP do listy EDL
+// (blob edl/blocked-ips.txt), którą odpytują firewalle perymetryczne.
+// Nazwa guid() różni się od przypisania workera mimo tej samej roli i konta —
+// bo principalId (playbook) jest inny => inny deterministyczny guid (bez kolizji).
+resource playbookBlobDataContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(playbookPrincipalId) && !empty(storageAccountName)) {
+  name: guid(storageAccount.id, playbookPrincipalId, roleStorageBlobDataContributor)
+  scope: storageAccount
+  properties: {
+    principalId: playbookPrincipalId
+    roleDefinitionId: roleDefinitionIds.storageBlobDataContributor
+    principalType: 'ServicePrincipal'
+    description: 'HoneyGrid: playbook SOAR dopisuje zablokowane IP do listy EDL (blob edl/blocked-ips.txt)'
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Host API (Tydzień 7, Track A — killer-ficzy) — rola ARM TYLKO DO ODCZYTU.
+// Asymetria względem sensora/workera jest CELOWA (least privilege):
+// API CZYTA nagrania TTY (kontener tty) do Session Replay — Storage Blob Data
+// READER, nie Contributor. API niczego nie zapisuje do Storage.
+// Rola Cosmos (Data Reader) NIE jest tutaj — to sqlRoleAssignments w data.bicep;
+// AcrPull API jest w app.bicep (kolejność wdrożenia).
+// ---------------------------------------------------------------------------
+resource apiBlobDataReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(apiPrincipalId) && !empty(storageAccountName)) {
+  name: guid(storageAccount.id, apiPrincipalId, 'blob-reader')
+  scope: storageAccount
+  properties: {
+    principalId: apiPrincipalId
+    roleDefinitionId: roleDefinitionIds.storageBlobDataReader
+    principalType: 'ServicePrincipal'
+    description: 'HoneyGrid: API czyta nagrania TTY (Session Replay) z blob tty — tylko odczyt.'
+  }
+}
+
 // ZREALIZOWANE w Tygodniu 3 (Track A): Cosmos DB Built-in Data Contributor
 // dla workera (sqlRoleAssignments w data.bicep) + Service Bus Data Sender (wyżej).
 // TODO (Track B): pozostałe role płaszczyzny danych:
@@ -290,6 +333,7 @@ output roleGuids object = {
   eventHubsDataSender: roleEventHubsDataSender
   eventHubsDataReceiver: roleEventHubsDataReceiver
   storageBlobDataContributor: roleStorageBlobDataContributor
+  storageBlobDataReader: roleStorageBlobDataReader
   serviceBusDataSender: roleServiceBusDataSender
   acrPull: roleAcrPull
 }

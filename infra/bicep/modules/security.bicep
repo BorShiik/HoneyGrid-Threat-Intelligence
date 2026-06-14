@@ -33,6 +33,7 @@ var suffix = uniqueString(resourceGroup().id)
 var sensorIdentityName = '${namePrefix}-${environment}-id-sensor'
 var playbookIdentityName = '${namePrefix}-${environment}-id-playbook'
 var workerIdentityName = '${namePrefix}-${environment}-id-worker'
+var apiIdentityName = '${namePrefix}-${environment}-id-api'
 // Key Vault: nazwa globalna, max 24 znaki.
 var keyVaultName = '${namePrefix}-${environment}-kv-${take(suffix, 8)}'
 
@@ -65,6 +66,21 @@ resource playbookIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024
 // ---------------------------------------------------------------------------
 resource workerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
   name: workerIdentityName
+  location: location
+  tags: tags
+}
+
+// ---------------------------------------------------------------------------
+// Tożsamość zarządzana hosta API (Tydzień 7, Track A — killer-ficzy)
+// Host API serwuje Session Replay (/api/sessions/{id}/replay) oraz eksport
+// STIX/IoC (/api/iocs/stix). Tożsamość jest TYLKO DO ODCZYTU (least privilege):
+// CZYTA dokumenty z Cosmos (events/iocs/sessions — rola płaszczyzny danych
+// Cosmos Built-in Data READER w data.bicep) i CZYTA nagrania TTY z Blob
+// (Storage Blob Data READER w rbac.bicep). AcrPull nadaje app.bicep (kolejność).
+// Świadoma asymetria względem workera: worker pisze (Contributor), API czyta.
+// ---------------------------------------------------------------------------
+resource apiIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
+  name: apiIdentityName
   location: location
   tags: tags
 }
@@ -109,6 +125,10 @@ output playbookIdentityPrincipalId string = playbookIdentity.properties.principa
 output workerIdentityId string = workerIdentity.id
 output workerIdentityPrincipalId string = workerIdentity.properties.principalId
 output workerIdentityClientId string = workerIdentity.properties.clientId
+
+output apiIdentityId string = apiIdentity.id
+output apiIdentityPrincipalId string = apiIdentity.properties.principalId
+output apiIdentityClientId string = apiIdentity.properties.clientId
 
 output keyVaultId string = keyVault.id
 output keyVaultName string = keyVault.name

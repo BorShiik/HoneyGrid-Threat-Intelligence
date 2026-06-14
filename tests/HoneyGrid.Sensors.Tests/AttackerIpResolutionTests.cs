@@ -113,6 +113,32 @@ public sealed class AttackerIpResolutionTests
         Assert.Equal(expected, WebHoneypotLogic.NormalizeIp(input));
     }
 
+    // ---- CanonicalIp: kanoniczny zapis RemoteIpAddress po ForwardedHeadersMiddleware ----
+
+    [Fact]
+    public void CanonicalIp_sprowadza_IPv4_mapped_do_IPv4()
+    {
+        Assert.Equal("1.2.3.4", WebHoneypotLogic.CanonicalIp(IPAddress.Parse("::ffff:1.2.3.4")));
+    }
+
+    [Fact]
+    public void CanonicalIp_zostawia_czysty_IPv4_bez_zmian()
+    {
+        Assert.Equal("203.0.113.7", WebHoneypotLogic.CanonicalIp(IPAddress.Parse("203.0.113.7")));
+    }
+
+    [Fact]
+    public void CanonicalIp_zostawia_czysty_IPv6_bez_zmian()
+    {
+        Assert.Equal("2001:db8::1", WebHoneypotLogic.CanonicalIp(IPAddress.Parse("2001:db8::1")));
+    }
+
+    [Fact]
+    public void CanonicalIp_dla_null_daje_unknown()
+    {
+        Assert.Equal("unknown", WebHoneypotLogic.CanonicalIp(null));
+    }
+
     // ---- IsTrustedProxy: rozpoznawanie podsieci ingressu ----
 
     [Fact]

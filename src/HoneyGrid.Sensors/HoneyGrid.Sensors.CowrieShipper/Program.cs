@@ -14,6 +14,9 @@ builder.AddHoneyGridEventHub();
 builder.Services.AddOptions<CowrieShipperOptions>()
     .Bind(builder.Configuration.GetSection(CowrieShipperOptions.SectionName));
 
+// Uploader binarnych nagrań TTY do Blob (bezkluczowo). Pusty BlobServiceUri → no-op.
+builder.Services.AddSingleton<TtyBlobUploader>();
+
 builder.Services.AddHostedService<CowrieTailWorker>();
 
 var host = builder.Build();

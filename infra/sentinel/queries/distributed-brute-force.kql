@@ -1,0 +1,23 @@
+// ============================================================================
+// HoneyGrid — detekcja: rozproszony brute force na jedno konto (Tydzień 5)
+// MITRE ATT&CK: T1110.001 (Brute Force: Password Guessing), taktyka: Credential Access
+//
+// Logika: odwrotność detekcji "jeden IP, wiele prób" — tu wiele RÓŻNYCH
+// adresów IP (botnet / proxy rotation) atakuje to samo konto (Username)
+// w oknie 1 godziny. Per-IP progi tego nie złapią (każdy IP robi mało
+// prób), dlatego grupujemy po Username i liczymy dcount(AttackerIp).
+//
+// Próg (>5 unikalnych IP / 1 h na jedno konto): WSTĘPNY — legalny ruch
+// na honeypocie nie istnieje, więc nawet kilka IP na to samo konto to
+// silny sygnał kampanii rozproszonej. Do strojenia po realnym ruchu
+// (Tydzień 5, dzień 4). UWAGA: brak żywego workspace w trakcie pisania —
+// zapytanie zweryfikowane konstrukcyjnie, nie na danych.
+//
+// Kolumny końcowej projekcji MUSZĄ zawierać Username — to kolumna
+// mapowana na encję Account w regule analitycznej (entityMappings).
+// ============================================================================
+Cowrie_CL
+| where EventType == 'login.failed'
+| summarize AttackingIps = dcount(AttackerIp), FailedAttempts = count() by Username, bin(TimeGenerated, 1h)
+| where AttackingIps > 5
+| project Username, AttackingIps, FailedAttempts

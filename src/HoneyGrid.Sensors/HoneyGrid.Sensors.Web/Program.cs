@@ -1,6 +1,7 @@
 using HoneyGrid.Contracts;
 using HoneyGrid.Sensors.Common;
 using HoneyGrid.Sensors.Web;
+using Microsoft.AspNetCore.HttpOverrides;
 
 // HoneyGrid.Sensors.Web — honeypot webowy (Minimal API).
 // Udaje podatną aplikację (panele logowania WordPress / phpMyAdmin, wyciekłe pliki .env / .git),
@@ -19,11 +20,38 @@ var sensorId = builder.Configuration["HoneyGrid:SensorId"] ?? "web-local-01";
 var sink = app.Services.GetRequiredService<IEventSink>();
 
 // W Container Apps ruch przychodzi przez ingress (envoy) i RemoteIpAddress to wewnętrzny
-// adres proxy (100.100.0.x), a prawdziwy adres klienta niesie nagłówek X-Forwarded-For.
-// Podsieci, z których ufamy temu nagłówkowi, są konfigurowalne (HoneyGrid:TrustedProxyNetworks).
+// adres proxy (zaobserwowane na żywych danych: 100.100.0.x, także jako ::ffff:100.100.0.x),
+// a prawdziwy adres klienta niesie nagłówek X-Forwarded-For. Podsieci, z których ufamy
+// temu nagłówkowi, są konfigurowalne: sekcja HoneyGrid:TrustedProxyNetworks
+// (env: HoneyGrid__TrustedProxyNetworks__0, HoneyGrid__TrustedProxyNetworks__1, ...).
+// Domyślnie: zakres wewnętrzny ingress-proxy Container Apps (zaobserwowany na żywych danych)
+// + loopback dla testów lokalnych.
 var trustedProxyNetworks = WebHoneypotLogic.ParseTrustedNetworks(
     builder.Configuration.GetSection("HoneyGrid:TrustedProxyNetworks").Get<string[]>()
-    ?? ["100.100.0.0/16"]);
+    ?? ["100.100.0.0/16", "127.0.0.1/32", "::1/128"]);
+
+// ForwardedHeadersMiddleware (kanoniczne podejście ASP.NET Core) przepisuje
+// Connection.RemoteIpAddress na adres z X-Forwarded-For. Ochrona przed spoofingiem:
+// atakujący może wysłać własny nagłówek X-Forwarded-For, dlatego middleware ufa mu
+// TYLKO wtedy, gdy bezpośredni peer połączenia jest zaufanym proxy (KnownIPNetworks);
+// w innym razie nagłówek jest ignorowany i zostaje RemoteIpAddress połączenia.
+// ForwardLimit = 1: honorujemy wyłącznie OSTATNI wpis nagłówka — jedyny dopisany przez
+// zaufany ingress; wpisy wcześniejsze (głębsze) są kontrolowane przez atakującego.
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+    ForwardLimit = 1,
+};
+forwardedHeadersOptions.KnownIPNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+foreach (var network in trustedProxyNetworks)
+{
+    forwardedHeadersOptions.KnownIPNetworks.Add(network);
+}
+
+// Middleware musi stać PRZED jakąkolwiek obsługą żądań, aby każda trasa-pułapka
+// widziała już prawdziwy adres klienta.
+app.UseForwardedHeaders(forwardedHeadersOptions);
 
 // Endpoint zdrowia — używany przez sondy Container Apps / App Service.
 app.MapGet("/healthz", () => Results.Ok(new { status = "healthy", sensorId }));
@@ -121,16 +149,11 @@ app.Run();
 
 // ---- Funkcje pomocnicze wiążące żądanie HTTP z IEventSink ----
 
-// Prawdziwy adres atakującego: X-Forwarded-For gdy połączenie przyszło z zaufanego proxy,
-// inaczej adres połączenia (zawsze bez prefiksu ::ffff:).
+// Prawdziwy adres atakującego: po ForwardedHeadersMiddleware RemoteIpAddress to już
+// adres klienta (z X-Forwarded-For, gdy połączenie przyszło z zaufanego proxy) —
+// tu zostaje tylko normalizacja zapisu (::ffff:1.2.3.4 → 1.2.3.4, null → "unknown").
 string AttackerIp(HttpContext ctx)
-{
-    var remote = ctx.Connection.RemoteIpAddress;
-    return WebHoneypotLogic.ResolveAttackerIp(
-        ctx.Request.Headers["X-Forwarded-For"].ToString(),
-        remote?.ToString(),
-        WebHoneypotLogic.IsTrustedProxy(remote, trustedProxyNetworks));
-}
+    => WebHoneypotLogic.CanonicalIp(ctx.Connection.RemoteIpAddress);
 
 async Task EmitHttpRequest(HttpContext ctx)
 {

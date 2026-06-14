@@ -1,0 +1,24 @@
+// ============================================================================
+// HoneyGrid — detekcja: atak brute force z jednego IP (Tydzień 5)
+// MITRE ATT&CK: T1110.001 (Brute Force: Password Guessing), taktyka: Credential Access
+//
+// Logika: zliczamy nieudane logowania (EventType == 'login.failed') per
+// AttackerIp w 5-minutowych koszykach (bin). Pojedynczy atakujący, który
+// przekroczy 15 nieudanych prób w 5 minut, to klasyczny zautomatyzowany
+// brute force (Hydra/Medusa robią setki prób na minutę — człowiek mylący
+// hasło nie zbliży się do tego progu).
+//
+// Próg (>15 prób / 5 min): WSTĘPNY — dobrany tak, by odsiać pojedyncze
+// skany i pomyłki, a złapać narzędzia automatyczne. Do strojenia po
+// obserwacji realnego ruchu na honeypotach (Tydzień 5, dzień 4 — po
+// ponownym wdrożeniu środowiska). UWAGA: brak żywego workspace w trakcie
+// pisania — zapytanie zweryfikowane konstrukcyjnie, nie na danych.
+//
+// Kolumny końcowej projekcji MUSZĄ zawierać AttackerIp — to kolumna
+// mapowana na encję IP w regule analitycznej (entityMappings).
+// ============================================================================
+Cowrie_CL
+| where EventType == 'login.failed'
+| summarize FailedAttempts = count(), TargetedAccounts = dcount(Username), FirstSeen = min(TimeGenerated), LastSeen = max(TimeGenerated) by AttackerIp, bin(TimeGenerated, 5m)
+| where FailedAttempts > 15
+| project AttackerIp, FailedAttempts, TargetedAccounts, FirstSeen, LastSeen

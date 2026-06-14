@@ -1,9 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
-  <!-- Publiczne API platformy + hub SignalR dla mapy ataków na żywo -->
+  <!-- Publiczne API platformy + hub SignalR + (Tydzień 7) endpointy killer-ficzy:
+       /api/iocs/stix (silnik HoneyGrid.Stix) oraz /api/sessions/{id}/replay
+       (parser HoneyGrid.Replay). Dostęp do Cosmos/Blob bezkluczowo (DefaultAzureCredential). -->
 
   <ItemGroup>
     <ProjectReference Include="..\HoneyGrid.Contracts\HoneyGrid.Contracts.csproj" />
+    <ProjectReference Include="..\HoneyGrid.Stix\HoneyGrid.Stix.csproj" />
+    <ProjectReference Include="..\HoneyGrid.Replay\HoneyGrid.Replay.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="1.21.0" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.61.0" />
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.29.0" />
+    <!-- Cosmos 3.x wymusza jawną referencję Newtonsoft.Json (mimo serializera STJ) — jak w HoneyGrid.Ingestion. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
   </ItemGroup>
 
 </Project>

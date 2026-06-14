@@ -43,6 +43,20 @@ public static class WebHoneypotLogic
     }
 
     /// <summary>
+    /// Kanoniczny zapis adresu klienta do pola AttackerIp — wołany na RemoteIpAddress
+    /// PO przejściu ForwardedHeadersMiddleware (który podmienia adres proxy na adres
+    /// klienta z X-Forwarded-For). Adresy IPv4 zmapowane na IPv6 ("::ffff:1.2.3.4")
+    /// wracają do czystego IPv4 ("1.2.3.4"), czyste IPv6 zostają bez zmian,
+    /// brak adresu daje "unknown".
+    /// </summary>
+    public static string CanonicalIp(IPAddress? remote)
+        => remote is null
+            ? "unknown"
+            : remote.IsIPv4MappedToIPv6
+                ? remote.MapToIPv4().ToString()
+                : remote.ToString();
+
+    /// <summary>
     /// Usuwa prefiks ::ffff: z adresów IPv4 zmapowanych na IPv6 (np. "::ffff:1.2.3.4" → "1.2.3.4").
     /// Inne adresy zwraca bez zmian.
     /// </summary>
@@ -70,6 +84,8 @@ public static class WebHoneypotLogic
     /// Czy połączenie przyszło z zaufanego proxy (ingress/envoy Container Apps)?
     /// Loopback jest zawsze zaufany (lokalny development); adresy IPv4-mapped są
     /// najpierw sprowadzane do IPv4, żeby pasowały do podsieci IPv4.
+    /// Czysty, testowalny model decyzji zaufania, którą w runtime podejmuje
+    /// ForwardedHeadersMiddleware (KnownIPNetworks) skonfigurowany w Program.cs.
     /// </summary>
     public static bool IsTrustedProxy(IPAddress? remote, IReadOnlyList<IPNetwork> trustedNetworks)
     {
@@ -108,6 +124,9 @@ public static class WebHoneypotLogic
     /// wcześniejsze mogły zostać sfałszowane przez atakującego — bierzemy ostatni element
     /// (jedyny dodany przez zaufany hop). Gdy nagłówek jest pusty lub niepoprawny,
     /// wraca adres połączenia; brak obu daje "unknown".
+    ///
+    /// Czysty, testowalny model tej samej polityki, którą w runtime realizuje
+    /// ForwardedHeadersMiddleware z ForwardLimit = 1 (Program.cs).
     /// </summary>
     public static string ResolveAttackerIp(string? forwardedFor, string? remoteIp, bool remoteIsTrustedProxy)
     {

@@ -1,0 +1,277 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "$connections": {
+      "type": "Object",
+      "defaultValue": {}
+    },
+    "nsgResourceId": {
+      "type": "String",
+      "defaultValue": ""
+    },
+    "subscriptionId": {
+      "type": "String",
+      "defaultValue": ""
+    },
+    "resourceGroup": {
+      "type": "String",
+      "defaultValue": ""
+    },
+    "storageAccountName": {
+      "type": "String",
+      "defaultValue": ""
+    },
+    "edlContainer": {
+      "type": "String",
+      "defaultValue": "edl"
+    },
+    "edlBlob": {
+      "type": "String",
+      "defaultValue": "blocked-ips.txt"
+    },
+    "webhookUrl": {
+      "type": "String",
+      "defaultValue": ""
+    }
+  },
+  "triggers": {
+    "Microsoft_Sentinel_incident": {
+      "type": "ApiConnectionWebhook",
+      "inputs": {
+        "body": {
+          "callback_url": "@{listCallbackUrl()}"
+        },
+        "host": {
+          "connection": {
+            "name": "@parameters('$connections')['azuresentinel']['connectionId']"
+          }
+        },
+        "path": "/incident-creation"
+      }
+    }
+  },
+  "actions": {
+    "Inicjalizuj_zablokowane": {
+      "type": "InitializeVariable",
+      "runAfter": {},
+      "inputs": {
+        "variables": [
+          {
+            "name": "ZablokowaneIp",
+            "type": "Array",
+            "value": []
+          }
+        ]
+      }
+    },
+    "Entities_-_Get_IPs": {
+      "type": "ApiConnection",
+      "runAfter": {
+        "Inicjalizuj_zablokowane": [
+          "Succeeded"
+        ]
+      },
+      "inputs": {
+        "host": {
+          "connection": {
+            "name": "@parameters('$connections')['azuresentinel']['connectionId']"
+          }
+        },
+        "method": "post",
+        "path": "/entities/ip",
+        "body": "@triggerBody()?['object']?['properties']?['relatedEntities']"
+      }
+    },
+    "For_each_IP": {
+      "type": "Foreach",
+      "runAfter": {
+        "Entities_-_Get_IPs": [
+          "Succeeded"
+        ]
+      },
+      "foreach": "@body('Entities_-_Get_IPs')?['IPs']",
+      "actions": {
+        "Blokuj_w_NSG": {
+          "type": "Http",
+          "runAfter": {},
+          "inputs": {
+            "method": "PUT",
+            "uri": "https://management.azure.com@{parameters('nsgResourceId')}/securityRules/Block-@{replace(items('For_each_IP')?['Address'], ':', '-')}",
+            "queries": {
+              "api-version": "2023-05-01"
+            },
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "properties": {
+                "description": "HoneyGrid SOAR auto-block",
+                "protocol": "*",
+                "sourcePortRange": "*",
+                "destinationPortRange": "*",
+                "sourceAddressPrefix": "@items('For_each_IP')?['Address']",
+                "destinationAddressPrefix": "*",
+                "access": "Deny",
+                "priority": "@add(1000, mod(int(coalesce(triggerBody()?['object']?['properties']?['incidentNumber'], 0)), 2500))",
+                "direction": "Inbound"
+              }
+            },
+            "authentication": {
+              "type": "ManagedServiceIdentity",
+              "audience": "https://management.azure.com/"
+            }
+          }
+        },
+        "Upewnij_blob_EDL": {
+          "type": "Http",
+          "runAfter": {
+            "Blokuj_w_NSG": [
+              "Succeeded"
+            ]
+          },
+          "inputs": {
+            "method": "PUT",
+            "uri": "https://@{parameters('storageAccountName')}.blob.core.windows.net/@{parameters('edlContainer')}/@{parameters('edlBlob')}",
+            "headers": {
+              "x-ms-blob-type": "AppendBlob",
+              "x-ms-version": "2021-08-06",
+              "Content-Length": "0"
+            },
+            "authentication": {
+              "type": "ManagedServiceIdentity",
+              "audience": "https://storage.azure.com/"
+            }
+          }
+        },
+        "Dopisz_do_EDL": {
+          "type": "Http",
+          "runAfter": {
+            "Upewnij_blob_EDL": [
+              "Succeeded",
+              "Failed"
+            ]
+          },
+          "inputs": {
+            "method": "PUT",
+            "uri": "https://@{parameters('storageAccountName')}.blob.core.windows.net/@{parameters('edlContainer')}/@{parameters('edlBlob')}",
+            "queries": {
+              "comp": "appendblock"
+            },
+            "headers": {
+              "x-ms-version": "2021-08-06"
+            },
+            "body": "@{concat(items('For_each_IP')?['Address'], '\n')}",
+            "authentication": {
+              "type": "ManagedServiceIdentity",
+              "audience": "https://storage.azure.com/"
+            }
+          }
+        },
+        "Dopisz_IP_do_listy": {
+          "type": "AppendToArrayVariable",
+          "runAfter": {
+            "Dopisz_do_EDL": [
+              "Succeeded"
+            ]
+          },
+          "inputs": {
+            "name": "ZablokowaneIp",
+            "value": "@items('For_each_IP')?['Address']"
+          }
+        }
+      }
+    },
+    "Powiadom_webhook": {
+      "type": "If",
+      "runAfter": {
+        "For_each_IP": [
+          "Succeeded"
+        ]
+      },
+      "expression": {
+        "and": [
+          {
+            "not": {
+              "equals": [
+                "@parameters('webhookUrl')",
+                ""
+              ]
+            }
+          }
+        ]
+      },
+      "actions": {
+        "POST_do_webhooka": {
+          "type": "Http",
+          "runAfter": {},
+          "inputs": {
+            "method": "POST",
+            "uri": "@parameters('webhookUrl')",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "incident": "@triggerBody()?['object']?['properties']?['title']",
+              "incidentNumber": "@triggerBody()?['object']?['properties']?['incidentNumber']",
+              "attackerIps": "@variables('ZablokowaneIp')",
+              "action": "blocked",
+              "nsg": "@last(split(parameters('nsgResourceId'), '/'))",
+              "mttrSeconds": "@div(sub(ticks(utcNow()), ticks(coalesce(triggerBody()?['object']?['properties']?['createdTimeUtc'], utcNow()))), 10000000)"
+            }
+          }
+        }
+      },
+      "else": {
+        "actions": {}
+      }
+    },
+    "Komentarz_do_incydentu": {
+      "type": "ApiConnection",
+      "runAfter": {
+        "Powiadom_webhook": [
+          "Succeeded"
+        ]
+      },
+      "inputs": {
+        "host": {
+          "connection": {
+            "name": "@parameters('$connections')['azuresentinel']['connectionId']"
+          }
+        },
+        "method": "post",
+        "path": "/Incidents/Comment",
+        "body": {
+          "incidentArmId": "@triggerBody()?['object']?['id']",
+          "message": "HoneyGrid SOAR — automatyczna mitygacja zakończona.\nZablokowane IP atakującego: @{join(variables('ZablokowaneIp'), ', ')}\nReguła Deny dopisana do NSG: @{last(split(parameters('nsgResourceId'), '/'))}\nIP dopisane do feedu EDL: @{parameters('edlContainer')}/@{parameters('edlBlob')}\nMTTR (sekundy): @{div(sub(ticks(utcNow()), ticks(coalesce(triggerBody()?['object']?['properties']?['createdTimeUtc'], utcNow()))), 10000000)}"
+        }
+      }
+    },
+    "Zamknij_incydent": {
+      "type": "ApiConnection",
+      "runAfter": {
+        "Komentarz_do_incydentu": [
+          "Succeeded"
+        ]
+      },
+      "inputs": {
+        "host": {
+          "connection": {
+            "name": "@parameters('$connections')['azuresentinel']['connectionId']"
+          }
+        },
+        "method": "put",
+        "path": "/Incidents",
+        "body": {
+          "incidentArmId": "@triggerBody()?['object']?['id']",
+          "status": "Closed",
+          "classification": {
+            "ClassificationAndReason": "TruePositive",
+            "ClassificationReasonText": "Zautomatyzowana mitygacja SOAR"
+          }
+        }
+      }
+    }
+  },
+  "outputs": {}
+}
