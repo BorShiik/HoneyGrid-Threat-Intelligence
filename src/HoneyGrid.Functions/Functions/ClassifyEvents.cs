@@ -37,6 +37,10 @@ public sealed class ClassifyEvents
             containerName: "events",
             Connection = "CosmosConnection",
             LeaseContainerName = "leases",
+            // Własny prefiks dzierżaw — KRYTYCZNE: każdy wyzwalacz Change Feed na
+            // tym samym kontenerze MUSI mieć osobny prefiks/kontener dzierżaw,
+            // inaczej procesory odbierałyby sobie dzierżawy partycji.
+            LeaseContainerPrefix = "classify",
             CreateLeaseContainerIfNotExists = true)]
         IReadOnlyList<HoneypotEvent> changes,
         CancellationToken cancellationToken)

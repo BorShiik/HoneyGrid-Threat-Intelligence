@@ -138,13 +138,11 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '200':
-          description: Tablica wiader geograficznych.
+          description: Punkty geograficzne do mapy ataków.
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/GeoBucket'
+                $ref: '#/components/schemas/GeoStats'
 
   /api/stats/credentials:
     get:
@@ -501,29 +499,75 @@ components:
     StatsOverview:
       type: object
       description: Podsumowanie aktywności do nagłówka dashboardu.
-      required: [eventsToday, uniqueIps, activeSensors, eventsPerMinute]
+      required:
+        [
+          totalEvents,
+          eventsLast24h,
+          uniqueAttackers,
+          activeSessions,
+          topCountries,
+          eventsBySensorType,
+          eventsByType,
+        ]
       properties:
-        eventsToday:
+        totalEvents:
           type: integer
-          description: Liczba zdarzeń zarejestrowanych dzisiaj (UTC).
-          example: 14823
-        uniqueIps:
+          description: Łączna liczba zdarzeń zarejestrowanych przez platformę.
+          example: 412338
+        eventsLast24h:
           type: integer
-          description: Liczba unikalnych adresów IP atakujących dzisiaj.
-          example: 1204
-        activeSensors:
+          description: Liczba zdarzeń z ostatnich 24 godzin (UTC).
+          example: 18204
+        uniqueAttackers:
           type: integer
-          description: Liczba sensorów aktywnych w ciągu ostatnich 5 minut.
-          example: 6
-        topCountry:
-          type: string
-          description: Kod kraju z największą liczbą zdarzeń dzisiaj (ISO 3166-1 alpha-2).
-          example: CN
-        eventsPerMinute:
+          description: Liczba unikalnych adresów IP atakujących.
+          example: 6412
+        activeSessions:
+          type: integer
+          description: Liczba sesji aktywnych w ciągu ostatnich 5 minut.
+          example: 14
+        topCountries:
           type: array
-          description: Szereg czasowy liczby zdarzeń na minutę (ostatnie 60 minut).
+          description: Kraje z największą liczbą zdarzeń (malejąco).
           items:
-            $ref: '#/components/schemas/TimeSeriesPoint'
+            $ref: '#/components/schemas/CountryCount'
+        eventsBySensorType:
+          type: object
+          description: Liczba zdarzeń wg typu sensora (klucze ssh|web|rdp).
+          additionalProperties:
+            type: integer
+          example: { ssh: 11204, web: 5113, rdp: 1887 }
+        eventsByType:
+          type: object
+          description: Liczba zdarzeń wg typu zdarzenia.
+          additionalProperties:
+            type: integer
+          example:
+            {
+              login.failed: 12490,
+              login.success: 312,
+              command: 1204,
+              http.request: 3866,
+              connect: 332,
+            }
+
+    CountryCount:
+      type: object
+      description: Kod/nazwa kraju wraz z liczbą zdarzeń.
+      required: [country, countryName, count]
+      properties:
+        country:
+          type: string
+          description: Dwuliterowy kod kraju (ISO 3166-1 alpha-2).
+          example: CN
+        countryName:
+          type: string
+          description: Pełna nazwa kraju.
+          example: Chiny
+        count:
+          type: integer
+          description: Liczba zdarzeń przypisanych krajowi.
+          example: 5840
 
     TimeSeriesPoint:
       type: object
@@ -539,9 +583,24 @@ components:
           description: Liczba zdarzeń w danej minucie.
           example: 42
 
-    GeoBucket:
+    GeoStats:
       type: object
-      description: Zagregowane wiadro geograficzne (per kraj) do mapy ataków.
+      description: Punkty geograficzne do mapy ataków wraz ze znacznikiem czasu.
+      required: [points, updatedAt]
+      properties:
+        points:
+          type: array
+          description: Punkty per kraj (malejąco po liczbie zdarzeń).
+          items:
+            $ref: '#/components/schemas/GeoStatPoint'
+        updatedAt:
+          type: string
+          format: date-time
+          description: Znacznik czasu wygenerowania agregacji (UTC).
+
+    GeoStatPoint:
+      type: object
+      description: Zagregowany punkt geograficzny (per kraj) do mapy ataków.
       required: [country, countryName, lat, lon, count]
       properties:
         country:
@@ -554,51 +613,65 @@ components:
           example: Chiny
         lat:
           type: number
-          description: Szerokość geograficzna centroidu kraju.
+          description: Szerokość geograficzna (centroid kraju).
           example: 35.8617
         lon:
           type: number
-          description: Długość geograficzna centroidu kraju.
+          description: Długość geograficzna (centroid kraju).
           example: 104.1954
         count:
           type: integer
-          description: Liczba zdarzeń z danego kraju w bieżącym oknie agregacji.
+          description: Liczba zdarzeń z danego kraju.
           example: 5371
 
     CredentialStats:
       type: object
       description: Analiza najczęściej używanych poświadczeń.
-      required: [topUsernames, topPasswords, topPairs]
+      required: [topUsernames, topPasswords, topPairs, totalAttempts]
       properties:
         topUsernames:
           type: array
           description: Najczęstsze nazwy użytkowników (malejąco po liczbie wystąpień).
           items:
-            $ref: '#/components/schemas/CountedValue'
+            $ref: '#/components/schemas/CountedUsername'
         topPasswords:
           type: array
           description: Najczęstsze hasła (malejąco po liczbie wystąpień).
           items:
-            $ref: '#/components/schemas/CountedValue'
+            $ref: '#/components/schemas/CountedPassword'
         topPairs:
           type: array
           description: Najczęstsze pary login/hasło (malejąco po liczbie wystąpień).
           items:
             $ref: '#/components/schemas/CountedPair'
+        totalAttempts:
+          type: integer
+          description: Łączna liczba prób logowania (z poświadczeniami).
+          example: 31240
 
-    CountedValue:
+    CountedUsername:
       type: object
-      description: Wartość wraz z liczbą wystąpień.
-      required: [value, count]
+      description: Nazwa użytkownika wraz z liczbą wystąpień.
+      required: [username, count]
       properties:
-        value:
+        username:
           type: string
-          description: Wartość (nazwa użytkownika lub hasło).
           example: root
         count:
           type: integer
-          description: Liczba wystąpień.
-          example: 3812
+          example: 8120
+
+    CountedPassword:
+      type: object
+      description: Hasło wraz z liczbą wystąpień.
+      required: [password, count]
+      properties:
+        password:
+          type: string
+          example: '123456'
+        count:
+          type: integer
+          example: 5230
 
     CountedPair:
       type: object
@@ -623,12 +696,24 @@ components:
       description: >-
         Sprofilowany aktor zagrożeń — klaster skorelowanej aktywności
         (po IP/ASN, odcisku behawioralnym, poświadczeniach i czasie).
-      required: [id, name, eventCount, firstSeen, lastSeen, countries, asns, sophistication]
+      required:
+        [
+          id,
+          name,
+          eventCount,
+          firstSeen,
+          lastSeen,
+          knownIps,
+          countries,
+          sophistication,
+          intent,
+          severity,
+        ]
       properties:
         id:
           type: string
           description: Identyfikator aktora.
-          example: actor-7f3a
+          example: actor-7f3a9c21
         name:
           type: string
           description: Nadana nazwa aktora (generowana, czytelna dla człowieka).
@@ -645,28 +730,38 @@ components:
           type: string
           format: date-time
           description: Znacznik czasu ostatniej zaobserwowanej aktywności.
+        knownIps:
+          type: array
+          description: Znane adresy IP przypisane aktorowi.
+          items:
+            type: string
+          example: ['185.224.128.43', '45.95.147.236']
         countries:
           type: array
           description: Kody krajów, z których obserwowano aktywność.
           items:
             type: string
           example: [RU, NL]
-        asns:
-          type: array
-          description: Numery ASN powiązane z infrastrukturą aktora.
-          items:
-            type: integer
-          example: [12389, 60729]
         sophistication:
-          type: number
-          minimum: 0
-          maximum: 1
-          description: Średnia ocena zaawansowania (0–1).
-          example: 0.65
-        dossier:
-          $ref: '#/components/schemas/ActorDossier'
-        fingerprint:
-          $ref: '#/components/schemas/ActorFingerprint'
+          type: string
+          description: Poziom zaawansowania (minimal | intermediate | advanced).
+          example: advanced
+        intent:
+          type: string
+          description: Intencja aktora (opportunistic | targeted | automated).
+          example: targeted
+        severity:
+          type: string
+          description: Poziom zagrożenia.
+          enum: [critical, high, medium, low]
+          example: critical
+        description:
+          type: string
+          description: Narracyjny opis (dossier) działalności aktora.
+          example: >-
+            Aktor prowadzi ukierunkowane kampanie brute-force SSH z
+            infrastruktury w RU/NL; po uzyskaniu dostępu pobiera koparkę
+            kryptowalut i utrwala obecność przez cron.
 
     ActorDossier:
       type: object

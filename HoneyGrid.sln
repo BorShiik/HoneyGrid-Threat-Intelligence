@@ -39,6 +39,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HoneyGrid.Stix.Tests", "tes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HoneyGrid.Replay.Tests", "tests\HoneyGrid.Replay.Tests\HoneyGrid.Replay.Tests.csproj", "{9E59CEDB-8FB9-4FFF-A051-E272508B03FC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HoneyGrid.Functions.Tests", "tests\HoneyGrid.Functions.Tests\HoneyGrid.Functions.Tests.csproj", "{C5A1E7D4-2B8F-4A6C-9E3D-7F1A2B3C4D5E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -229,6 +231,18 @@ Global
 		{9E59CEDB-8FB9-4FFF-A051-E272508B03FC}.Release|x64.Build.0 = Release|Any CPU
 		{9E59CEDB-8FB9-4FFF-A051-E272508B03FC}.Release|x86.ActiveCfg = Release|Any CPU
 		{9E59CEDB-8FB9-4FFF-A051-E272508B03FC}.Release|x86.Build.0 = Release|Any CPU
+		{C5A1E7D4-2B8F-4A6C-9E3D-7F1A2B3C4D5E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C5A1E7D4-2B8F-4A6C-9E3D-7F1A2B3C4D5E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C5A1E7D4-2B8F-4A6C-9E3D-7F1A2B3C4D5E}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C5A1E7D4-2B8F-4A6C-9E3D-7F1A2B3C4D5E}.Debug|x64.Build.0 = Debug|Any CPU
+		{C5A1E7D4-2B8F-4A6C-9E3D-7F1A2B3C4D5E}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C5A1E7D4-2B8F-4A6C-9E3D-7F1A2B3C4D5E}.Debug|x86.Build.0 = Debug|Any CPU
+		{C5A1E7D4-2B8F-4A6C-9E3D-7F1A2B3C4D5E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C5A1E7D4-2B8F-4A6C-9E3D-7F1A2B3C4D5E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C5A1E7D4-2B8F-4A6C-9E3D-7F1A2B3C4D5E}.Release|x64.ActiveCfg = Release|Any CPU
+		{C5A1E7D4-2B8F-4A6C-9E3D-7F1A2B3C4D5E}.Release|x64.Build.0 = Release|Any CPU
+		{C5A1E7D4-2B8F-4A6C-9E3D-7F1A2B3C4D5E}.Release|x86.ActiveCfg = Release|Any CPU
+		{C5A1E7D4-2B8F-4A6C-9E3D-7F1A2B3C4D5E}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -250,5 +264,6 @@ Global
 		{3B235590-549A-41DC-A9BC-C056BDF0DD10} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{45078246-DE7E-4FE1-8118-3565F0FF01DF} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{9E59CEDB-8FB9-4FFF-A051-E272508B03FC} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{C5A1E7D4-2B8F-4A6C-9E3D-7F1A2B3C4D5E} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

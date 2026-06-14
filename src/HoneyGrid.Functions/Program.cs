@@ -20,7 +20,8 @@ using Microsoft.Extensions.Hosting;
 
 var builder = FunctionsApplication.CreateBuilder(args);
 
-builder.ConfigureFunctionsWebApplication();
+// Wyzwalacze: CosmosDB (Change Feed) + Timer — bez HTTP, więc nie wołamy
+// ConfigureFunctionsWebApplication() (to wymaga rozszerzenia Http.AspNetCore).
 
 builder.Services
     .AddApplicationInsightsTelemetryWorkerService()
