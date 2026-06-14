@@ -9,6 +9,13 @@
     "__comment_cosmos": "Identity-based connection for the CosmosDBTrigger AND the injected CosmosClient. Use `az login` locally; Managed Identity in Azure. No keys.",
     "CosmosConnection__accountEndpoint": "https://<twoje-konto>.documents.azure.com:443/",
 
+    "__comment_openai": "Opcjonalne. Bez OpenAIEndpoint klasyfikator AI jest wyłączony i działa sam stub. Keyless: rola 'Cognitive Services OpenAI User'.",
+    "OpenAIEndpoint": "https://<twoje-konto>.openai.azure.com/",
+    "OpenAIDeployment": "gpt-4o-mini",
+
+    "__comment_signalr": "SignalR Service (tryb Serverless) — wiązania FanOutToSignalR i negotiate. Keyless: rola 'SignalR Service Owner'. Domyślna nazwa połączenia: AzureSignalRConnectionString.",
+    "AzureSignalRConnectionString__serviceUri": "https://<twoj-signalr>.service.signalr.net",
+
     "APPLICATIONINSIGHTS_CONNECTION_STRING": "<opcjonalnie — connection string App Insights>"
   }
 }

@@ -2,6 +2,7 @@ using HoneyGrid.Contracts;
 using HoneyGrid.Functions.Profiling;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace HoneyGrid.Functions.Functions;

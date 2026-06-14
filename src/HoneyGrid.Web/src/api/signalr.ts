@@ -2,8 +2,13 @@ import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signal
 import { useConnectionStore } from '@/stores/connectionStore';
 import type { HoneypotEvent } from '@/types/api';
 
-/** SignalR hub path — must match the backend contract exactly. */
-export const ATTACKS_HUB_URL = '/hubs/attacks';
+/**
+ * SignalR hub URL. In dev/MSW this is unused (the live hook uses a simulator).
+ * In production set VITE_SIGNALR_URL to the Serverless negotiate base hosted by
+ * the Functions app, e.g. https://<funcapp>.azurewebsites.net/api/hubs/attacks
+ * — the SignalR client appends "/negotiate" to it automatically.
+ */
+export const ATTACKS_HUB_URL = import.meta.env.VITE_SIGNALR_URL ?? '/hubs/attacks';
 
 /** Server-to-client event name carrying a HoneypotEvent payload. */
 export const ATTACK_EVENT = 'attack';

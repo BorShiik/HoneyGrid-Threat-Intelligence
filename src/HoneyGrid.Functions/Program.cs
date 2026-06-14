@@ -1,5 +1,6 @@
 using Azure.Identity;
 using HoneyGrid.Contracts;
+using HoneyGrid.Functions.Ai;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Functions.Worker.Builder;
 using Microsoft.Extensions.Configuration;
@@ -42,5 +43,9 @@ builder.Services.AddSingleton(sp =>
         UseSystemTextJsonSerializerWithOptions = HoneyGridJson.Options,
     });
 });
+
+// Klasyfikator AI (Azure OpenAI). Sam wyłącza się, gdy brak OpenAIEndpoint —
+// wtedy ClassifyEvents korzysta wyłącznie z klasyfikatora zastępczego (stub).
+builder.Services.AddSingleton<OpenAiClassifier>();
 
 builder.Build().Run();

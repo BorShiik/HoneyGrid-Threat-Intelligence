@@ -33,6 +33,11 @@ public static class StatsEndpoints
         CancellationToken ct)
     {
         var logger = loggerFactory.CreateLogger("HoneyGrid.Api.Stats");
+
+        // Szybka ścieżka: predrachowany agregat (funkcja BuildAggregates).
+        var precomputed = await TryReadAggregateAsync<StatsOverviewDto>(cosmos, config, "overview", ct);
+        if (precomputed is not null) return Results.Json(precomputed, HoneyGridJson.Options);
+
         var container = GetEventsContainer(cosmos, config);
         var cutoff = DateTimeOffset.UtcNow.AddHours(-24).ToString("O");
         var sessionCutoff = DateTimeOffset.UtcNow.AddMinutes(-5).ToString("O");
@@ -93,6 +98,11 @@ public static class StatsEndpoints
         CancellationToken ct)
     {
         var logger = loggerFactory.CreateLogger("HoneyGrid.Api.Stats");
+
+        // Szybka ścieżka: predrachowany agregat (funkcja BuildAggregates).
+        var precomputed = await TryReadAggregateAsync<GeoStatsDto>(cosmos, config, "geo", ct);
+        if (precomputed is not null) return Results.Json(precomputed, HoneyGridJson.Options);
+
         var container = GetEventsContainer(cosmos, config);
 
         var rows = new List<GeoStatPointDto>();
@@ -143,6 +153,11 @@ public static class StatsEndpoints
         CancellationToken ct)
     {
         var logger = loggerFactory.CreateLogger("HoneyGrid.Api.Stats");
+
+        // Szybka ścieżka: predrachowany agregat (funkcja BuildAggregates).
+        var precomputed = await TryReadAggregateAsync<CredentialStatsDto>(cosmos, config, "credentials", ct);
+        if (precomputed is not null) return Results.Json(precomputed, HoneyGridJson.Options);
+
         var container = GetEventsContainer(cosmos, config);
 
         var byUser = await GroupCountAsync(container,
@@ -199,6 +214,29 @@ public static class StatsEndpoints
     {
         var databaseName = config["HoneyGrid:CosmosDatabase"] ?? "honeygrid";
         return cosmos.GetContainer(databaseName, "events");
+    }
+
+    /// <summary>
+    /// Próbuje odczytać predrachowany agregat z kontenera 'aggregates'
+    /// (id = bucket = klucz partycji). Zwraca null, gdy dokumentu brak lub
+    /// odczyt się nie powiódł — wołający przechodzi wtedy na liczenie na żywo.
+    /// </summary>
+    private static async Task<T?> TryReadAggregateAsync<T>(
+        CosmosClient cosmos, IConfiguration config, string bucket, CancellationToken ct)
+        where T : class
+    {
+        try
+        {
+            var databaseName = config["HoneyGrid:CosmosDatabase"] ?? "honeygrid";
+            var container = cosmos.GetContainer(databaseName, "aggregates");
+            var response = await container.ReadItemAsync<T>(bucket, new PartitionKey(bucket), cancellationToken: ct);
+            return response.Resource;
+        }
+        catch
+        {
+            // Brak agregatu / błąd → fallback na liczenie na żywo (poniżej).
+            return null;
+        }
     }
 
     private static async Task<long> ScalarAsync(
