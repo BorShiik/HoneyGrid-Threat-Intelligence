@@ -53,9 +53,14 @@ public sealed class CorrelateActors
         var actorsContainer = _cosmos.GetContainer(_databaseName, "actors");
         var upserted = 0;
 
+        // Mapa IP → aktor: pozwala dowiązać zdarzenia do aktora (backlink).
+        var ipToActor = new Dictionary<string, string>(StringComparer.Ordinal);
+
         foreach (var cluster in clusters)
         {
             var profile = ActorProfileBuilder.Build(cluster);
+            foreach (var fp in cluster) ipToActor[fp.AttackerIp] = profile.Id;
+
             try
             {
                 await actorsContainer.UpsertItemAsync(profile, new PartitionKey(profile.Id), cancellationToken: cancellationToken);
@@ -68,9 +73,55 @@ public sealed class CorrelateActors
             }
         }
 
+        var linked = await BacklinkEventsAsync(events, ipToActor, cancellationToken);
+
         _logger.LogInformation(
-            "Korelacja aktorów: {Events} zdarzeń → {Fingerprints} źródeł → {Actors} aktorów (zapisano {Upserted}).",
-            events.Count, fingerprints.Count, clusters.Count, upserted);
+            "Korelacja aktorów: {Events} zdarzeń → {Fingerprints} źródeł → {Actors} aktorów " +
+            "(zapisano {Upserted}, dowiązano {Linked} zdarzeń do aktorów).",
+            events.Count, fingerprints.Count, clusters.Count, upserted, linked);
+    }
+
+    // Maksymalna liczba PATCH-y dowiązań na jeden przebieg (ochrona przed lawiną RU).
+    private const int MaxBacklinkPatches = 2000;
+
+    /// <summary>
+    /// Dowiązuje zdarzenia do aktorów: ustawia <c>classification.actorId</c> dla
+    /// zdarzeń, których IP należy do sklastrowanego aktora. Dzięki temu karta
+    /// aktora może pokazać jego zdarzenia. Patch tylko gdy klasyfikacja istnieje
+    /// i actorId się różni (idempotentnie, z limitem).
+    /// </summary>
+    private async Task<int> BacklinkEventsAsync(
+        IReadOnlyList<HoneypotEvent> events,
+        IReadOnlyDictionary<string, string> ipToActor,
+        CancellationToken ct)
+    {
+        var container = _cosmos.GetContainer(_databaseName, "events");
+        var linked = 0;
+
+        foreach (var evt in events)
+        {
+            if (linked >= MaxBacklinkPatches) break;
+            if (evt.Classification is null) continue; // actorId leży wewnątrz classification
+            if (!ipToActor.TryGetValue(evt.AttackerIp, out var actorId)) continue;
+            if (string.Equals(evt.Classification.ActorId, actorId, StringComparison.Ordinal)) continue;
+
+            try
+            {
+                await container.PatchItemAsync<HoneypotEvent>(
+                    id: evt.Id.ToString(),
+                    partitionKey: new PartitionKey(evt.AttackerIp),
+                    patchOperations: [PatchOperation.Set("/classification/actorId", actorId)],
+                    cancellationToken: ct);
+                linked++;
+            }
+            catch (CosmosException ex)
+            {
+                _logger.LogWarning(ex, "Korelacja: backlink zdarzenia {EventId} nieudany (status {Status}).",
+                    evt.Id, ex.StatusCode);
+            }
+        }
+
+        return linked;
     }
 
     private async Task<List<HoneypotEvent>> LoadRecentEventsAsync(CancellationToken ct)

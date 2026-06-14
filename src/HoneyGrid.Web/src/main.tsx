@@ -1,6 +1,7 @@
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
+import './i18n'; // initialise i18next (pl default, en/ru) before first render
 import './index.css';
 
 async function enableMocking() {

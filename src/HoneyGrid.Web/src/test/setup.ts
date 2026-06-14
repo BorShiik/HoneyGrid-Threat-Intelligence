@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+import '@/i18n'; // initialise i18next (pl) so useTranslation works in tests
 import { afterAll, afterEach, beforeAll } from 'vitest';
 import { setupServer } from 'msw/node';
 import { handlers } from '@/mocks/handlers';

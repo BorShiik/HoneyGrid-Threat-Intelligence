@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using HoneyGrid.Contracts;
 
 namespace HoneyGrid.Functions.Ai;
@@ -52,7 +53,7 @@ public static class ClassificationPrompt
 
     private static readonly JsonSerializerOptions CompactOptions = new()
     {
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         WriteIndented = false,
     };
 }

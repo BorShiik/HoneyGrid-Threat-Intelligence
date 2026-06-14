@@ -2,6 +2,7 @@ using System.ClientModel;
 using Azure.AI.OpenAI;
 using Azure.Identity;
 using HoneyGrid.Contracts;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OpenAI.Chat;
 

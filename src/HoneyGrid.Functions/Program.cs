@@ -6,6 +6,7 @@ using Microsoft.Azure.Functions.Worker.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Azure.Functions.Worker;
 
 // HoneyGrid.Functions — funkcje Azure (.NET isolated worker), Track B.
 // Zaimplementowane / planowane:

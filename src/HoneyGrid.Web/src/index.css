@@ -2,52 +2,65 @@
 @import 'tw-animate-css';
 
 /*
- * HoneyGrid design system — dark-first (SOC / cyber product).
- * Tailwind CSS v4: theme is defined in CSS via @theme, no tailwind.config.js.
- * Semantic tokens follow shadcn/ui conventions (--background, --card, --primary, ...).
+ * HoneyGrid — Premium Utility Design System.
+ * Deep black SOC aesthetic with neon threat indicators.
+ * Tailwind CSS v4 @theme (no tailwind.config.js).
  */
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 :root {
-  /* Deep slate / near-black backgrounds */
-  --background: oklch(0.16 0.015 260);
-  --foreground: oklch(0.93 0.01 250);
+  /* ── Surface Hierarchy ── */
+  --background: #09090b;
+  --foreground: #fafafa;
 
-  --card: oklch(0.2 0.018 260);
-  --card-foreground: oklch(0.93 0.01 250);
+  --card: rgba(24, 24, 27, 0.5);
+  --card-foreground: #fafafa;
 
-  --popover: oklch(0.19 0.018 260);
-  --popover-foreground: oklch(0.93 0.01 250);
+  --popover: rgba(24, 24, 27, 0.9);
+  --popover-foreground: #fafafa;
 
-  /* Honey / amber accent (#f59e0b family — "HoneyGrid") */
-  --primary: oklch(0.77 0.16 70);
-  --primary-foreground: oklch(0.18 0.04 70);
+  /* ── Accent — Amber / HoneyGrid ── */
+  --primary: #f59e0b;
+  --primary-foreground: #1c1917;
 
-  --secondary: oklch(0.26 0.02 260);
-  --secondary-foreground: oklch(0.93 0.01 250);
+  --secondary: rgba(39, 39, 42, 0.7);
+  --secondary-foreground: #fafafa;
 
-  --muted: oklch(0.25 0.018 260);
-  --muted-foreground: oklch(0.68 0.015 255);
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
 
-  --accent: oklch(0.27 0.03 75);
-  --accent-foreground: oklch(0.85 0.13 75);
+  --accent: rgba(39, 39, 42, 0.5);
+  --accent-foreground: #fafafa;
 
-  --destructive: oklch(0.58 0.22 27);
-  --destructive-foreground: oklch(0.97 0.01 20);
+  --destructive: #e11d48;
+  --destructive-foreground: #fafafa;
 
-  --border: oklch(0.29 0.02 260);
-  --input: oklch(0.29 0.02 260);
-  --ring: oklch(0.77 0.16 70);
+  --border: rgba(63, 63, 70, 0.3);
+  --input: rgba(63, 63, 70, 0.4);
+  --ring: #f59e0b;
 
-  /* Threat severity scale */
-  --severity-critical: oklch(0.6 0.24 27); /* red */
-  --severity-high: oklch(0.69 0.19 45); /* orange */
-  --severity-medium: oklch(0.77 0.16 70); /* amber */
-  --severity-low: oklch(0.72 0.17 160); /* emerald */
-  --severity-info: oklch(0.7 0.12 240); /* blue */
+  /* ── Threat Severity Scale ── */
+  --severity-critical: #e11d48;
+  --severity-critical-bg: #4c0519;
+  --severity-critical-glow: 0 0 12px rgba(225, 29, 72, 0.4);
 
-  /* Connection status */
-  --status-online: oklch(0.72 0.17 160);
-  --status-offline: oklch(0.6 0.24 27);
+  --severity-high: #f97316;
+  --severity-high-bg: #431407;
+  --severity-high-glow: 0 0 10px rgba(249, 115, 22, 0.3);
+
+  --severity-medium: #f59e0b;
+  --severity-medium-bg: #451a03;
+  --severity-medium-glow: 0 0 8px rgba(245, 158, 11, 0.2);
+
+  --severity-low: #3b82f6;
+  --severity-low-bg: #172554;
+
+  --severity-info: #3b82f6;
+
+  /* ── Status ── */
+  --status-online: #10b981;
+  --status-offline: #e11d48;
 
   --radius: 0.5rem;
 }
@@ -87,10 +100,8 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  /* Typography: system stack + monospace for IPs / commands / terminal output */
-  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-mono:
-    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 @layer base {
@@ -100,5 +111,79 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    background: #09090b;
+  }
+
+  /* Keyboard focus ring — accessible, styled */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-primary/50 ring-offset-2 ring-offset-background;
+  }
+
+  /* Custom scrollbar for the SOC aesthetic */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(63, 63, 70, 0.5);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(63, 63, 70, 0.8);
+  }
+}
+
+/* ── Utility classes ── */
+@layer utilities {
+  .glass {
+    background: rgba(24, 24, 27, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .glass-strong {
+    background: rgba(24, 24, 27, 0.8);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .glow-critical {
+    box-shadow: var(--severity-critical-glow);
+  }
+  .glow-high {
+    box-shadow: var(--severity-high-glow);
+  }
+  .glow-medium {
+    box-shadow: var(--severity-medium-glow);
+  }
+
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(39, 39, 42, 0.3) 25%,
+      rgba(63, 63, 70, 0.3) 50%,
+      rgba(39, 39, 42, 0.3) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.5); }
+  }
+
+  .pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
   }
 }
