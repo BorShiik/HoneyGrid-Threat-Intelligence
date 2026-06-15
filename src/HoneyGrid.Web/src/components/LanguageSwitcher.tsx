@@ -5,6 +5,8 @@ import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LANGS, LANG_META, type Lang } from '@/i18n';
 
+import { CountryFlag } from '@/components/ui/CountryFlag';
+
 /**
  * Compact glass language switcher (PL / EN / RU). Persists the choice via
  * i18next's localStorage detector and animates the dropdown with spring physics.
@@ -41,7 +43,7 @@ export function LanguageSwitcher() {
         aria-label="Language"
         className="flex items-center gap-1.5 rounded-md bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 hover:bg-white/10 transition-colors"
       >
-        <span className="text-base leading-none">{LANG_META[current].flag}</span>
+        <CountryFlag code={LANG_META[current].flag} />
         <span className="font-medium uppercase">{current}</span>
       </button>
 
@@ -66,7 +68,7 @@ export function LanguageSwitcher() {
                     l === current ? 'bg-white/10 text-white' : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200',
                   )}
                 >
-                  <span className="text-base leading-none">{LANG_META[l].flag}</span>
+                  <CountryFlag code={LANG_META[l].flag} />
                   <span className="flex-1 text-left">{LANG_META[l].label}</span>
                   {l === current && <Check className="h-3.5 w-3.5 text-amber-500" />}
                 </button>

@@ -236,7 +236,7 @@ export function AppShell() {
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Top Bar */}
         <header
-          className="flex h-12 items-center justify-between gap-2 px-3 sm:px-5 glass-strong"
+          className="relative z-40 flex h-12 items-center justify-between gap-2 px-3 sm:px-5 glass-strong"
           style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
         >
           <div className="flex min-w-0 items-center gap-2">

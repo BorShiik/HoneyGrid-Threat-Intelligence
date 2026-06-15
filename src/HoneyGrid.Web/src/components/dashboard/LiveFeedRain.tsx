@@ -1,3 +1,4 @@
+import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
@@ -40,13 +41,14 @@ function fmtTime(ts: string): string {
   });
 }
 
-function FeedRow({ event }: { event: HoneypotEvent }) {
+const FeedRow = React.forwardRef<HTMLDivElement, { event: HoneypotEvent }>(({ event }, ref) => {
   const { t } = useTranslation();
   const sev = eventSeverity(event);
   const critical = sev === 'critical';
 
   return (
     <motion.div
+      ref={ref}
       layout
       initial={{ opacity: 0, y: -16, filter: 'blur(4px)' }}
       animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
@@ -87,7 +89,7 @@ function FeedRow({ event }: { event: HoneypotEvent }) {
       </span>
     </motion.div>
   );
-}
+});
 
 export function LiveFeedRain({
   events,

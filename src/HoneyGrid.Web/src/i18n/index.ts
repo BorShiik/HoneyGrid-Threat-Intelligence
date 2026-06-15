@@ -10,9 +10,9 @@ export const LANGS = ['pl', 'en', 'ru'] as const;
 export type Lang = (typeof LANGS)[number];
 
 export const LANG_META: Record<Lang, { label: string; flag: string }> = {
-  pl: { label: 'Polski', flag: '🇵🇱' },
-  en: { label: 'English', flag: '🇬🇧' },
-  ru: { label: 'Русский', flag: '🇷🇺' },
+  pl: { label: 'Polski', flag: 'PL' },
+  en: { label: 'English', flag: 'GB' },
+  ru: { label: 'Русский', flag: 'RU' },
 };
 
 /** localStorage key used to persist the user's language choice. */

@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Points, PointMaterial } from '@react-three/drei';
 import * as THREE from 'three';
+import { FrameLimiter } from './FrameLimiter';
 
 /**
  * A slowly rotating sphere of particles — sits behind the big number on the
@@ -9,7 +10,7 @@ import * as THREE from 'three';
  * mounted only via <ParticleSphere> behind a WebGL guard + React.lazy.
  */
 
-const COUNT = 700;
+const COUNT = 450;
 
 /**
  * Even-ish distribution on a sphere surface (golden-spiral) with a little
@@ -58,11 +59,13 @@ function Sphere({ color }: { color: string }) {
 export default function ParticleSphereScene({ color = '#f59e0b' }: { color?: string }) {
   return (
     <Canvas
-      dpr={[1, 1.5]}
+      frameloop="demand"
+      dpr={[1, 1.25]}
       gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }}
       camera={{ position: [0, 0, 3], fov: 50 }}
       style={{ pointerEvents: 'none' }}
     >
+      <FrameLimiter fps={30} />
       <Sphere color={color} />
     </Canvas>
   );

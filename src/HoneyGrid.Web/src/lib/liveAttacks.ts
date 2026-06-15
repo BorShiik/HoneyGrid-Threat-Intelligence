@@ -151,7 +151,9 @@ export function useLiveAttacks(options?: UseLiveAttacksOptions): UseLiveAttacksR
 
   // Keep the buffer cap in a ref so the push closure stays stable.
   const bufferRef = useRef(bufferSize);
-  bufferRef.current = bufferSize;
+  useEffect(() => {
+    bufferRef.current = bufferSize;
+  }, [bufferSize]);
 
   useEffect(() => {
     if (!enabled) return;

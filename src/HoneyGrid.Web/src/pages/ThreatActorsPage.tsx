@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatInt } from '@/lib/format';
-import { flagEmoji } from '@/lib/geo';
+import { CountryFlag } from '@/components/ui/CountryFlag';
 import { useActors } from '@/api/queries';
 import type { Severity, ThreatActor } from '@/types/api';
 
@@ -80,7 +80,7 @@ function ActorCard({ actor, index, onClick }: { actor: ThreatActor; index: numbe
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {actor.countries.slice(0, 5).map((c) => (
           <span key={c} className="text-base leading-none" title={c}>
-            {flagEmoji(c)}
+            <CountryFlag code={c} className="text-base" />
           </span>
         ))}
         <span className="ml-auto text-[11px] text-zinc-500">{t(`sophistication.${actor.sophistication}`)}</span>
@@ -150,7 +150,21 @@ function DossierModal({ actor, onClose }: { actor: ThreatActor; onClose: () => v
 
           <div className="grid grid-cols-2 gap-2.5">
             <Stat icon={Activity} label={t('actors.events')} value={formatInt(actor.eventCount)} />
-            <Stat icon={Globe} label={t('actors.countries')} value={actor.countries.map(flagEmoji).join(' ') || '—'} />
+            <Stat
+              icon={Globe}
+              label={t('actors.countries')}
+              value={
+                actor.countries.length > 0 ? (
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    {actor.countries.map((c) => (
+                      <CountryFlag key={c} code={c} className="text-base" />
+                    ))}
+                  </span>
+                ) : (
+                  '—'
+                )
+              }
+            />
             <Stat icon={Crosshair} label={t('actors.firstSeen')} value={fmtDate(actor.firstSeen)} />
             <Stat icon={ShieldAlert} label={t('actors.lastSeen')} value={fmtDate(actor.lastSeen)} />
           </div>

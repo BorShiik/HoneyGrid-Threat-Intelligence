@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { supportsWebGL } from '@/lib/webgl';
+import { useReducedMotion } from '@/lib/useReducedMotion';
 
 const ParticleSphereScene = lazy(() => import('./ParticleSphereScene'));
 
@@ -9,7 +10,8 @@ const ParticleSphereScene = lazy(() => import('./ParticleSphereScene'));
  * still has a living center.
  */
 export function ParticleSphere({ color = '#f59e0b' }: { color?: string }) {
-  const webgl = supportsWebGL();
+  const reducedMotion = useReducedMotion();
+  const webgl = supportsWebGL() && !reducedMotion;
 
   if (!webgl) {
     return (

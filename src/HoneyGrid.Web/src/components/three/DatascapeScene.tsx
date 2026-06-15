@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Grid, Points, PointMaterial } from '@react-three/drei';
 import * as THREE from 'three';
+import { FrameLimiter } from './FrameLimiter';
 
 /**
  * The 3D "Datascape" — an abstract, slow-moving backdrop the glass UI floats
@@ -17,7 +18,7 @@ import * as THREE from 'three';
  * locked 1–1.5 DPR and a modest particle count so it idles cheaply.
  */
 
-const PARTICLE_COUNT = 1800;
+const PARTICLE_COUNT = 1100;
 
 /** Builds a stable random point cloud inside a wide, shallow box. */
 function makeParticleCloud(): Float32Array {
@@ -83,11 +84,13 @@ function DriftingMotes() {
 export default function DatascapeScene() {
   return (
     <Canvas
-      dpr={[1, 1.5]}
+      frameloop="demand"
+      dpr={[1, 1.25]}
       gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }}
       camera={{ position: [0, 1.4, 10], fov: 55 }}
       style={{ pointerEvents: 'none' }}
     >
+      <FrameLimiter fps={30} />
       <fog attach="fog" args={['#09090b', 9, 26]} />
       <ambientLight intensity={0.4} />
 

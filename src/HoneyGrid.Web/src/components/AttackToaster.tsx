@@ -5,7 +5,7 @@ import { ShieldAlert, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { attackBus, ATTACK_BUS_EVENT } from '@/lib/liveAttacks';
 import { eventSeverity, eventTypeKey } from '@/lib/format';
-import { flagEmoji } from '@/lib/geo';
+import { CountryFlag } from '@/components/ui/CountryFlag';
 import { useSettingsStore } from '@/lib/settings';
 import type { HoneypotEvent } from '@/types/api';
 
@@ -92,7 +92,7 @@ export function AttackToaster() {
                     <span className="text-[11px] text-zinc-500">{t(`eventType.${eventTypeKey(ev.eventType)}`)}</span>
                   </div>
                   <div className="mt-1 flex items-center gap-1.5 font-mono text-sm text-zinc-200">
-                    {ev.geo?.country && <span className="text-base leading-none">{flagEmoji(ev.geo.country)}</span>}
+                    {ev.geo?.country && <CountryFlag code={ev.geo.country} className="text-base" />}
                     <span className="truncate">{ev.attackerIp}</span>
                   </div>
                   {ev.geo?.countryName && <div className="truncate text-[11px] text-zinc-500">{ev.geo.countryName}</div>}

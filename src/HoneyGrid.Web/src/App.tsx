@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MotionConfig } from 'framer-motion';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AppShell } from '@/components/layout/AppShell';
 import { DashboardPage } from '@/pages/DashboardPage';
@@ -24,20 +25,22 @@ const queryClient = new QueryClient({
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider delayDuration={200}>
-        <Routes>
-          <Route element={<AppShell />}>
-            <Route index element={<DashboardPage />} />
-            <Route path="threat-map" element={<ThreatMapPage />} />
-            <Route path="live-feed" element={<LiveFeedPage />} />
-            <Route path="actors" element={<ThreatActorsPage />} />
-            <Route path="credentials" element={<CredentialsPage />} />
-            <Route path="ioc" element={<IocPage />} />
-            <Route path="sdn" element={<SdnMonitoringPage />} />
-            <Route path="ai-integrations" element={<AiIntegrationsPage />} />
-          </Route>
-        </Routes>
-      </TooltipProvider>
+      <MotionConfig reducedMotion="user">
+        <TooltipProvider delayDuration={200}>
+          <Routes>
+            <Route element={<AppShell />}>
+              <Route index element={<DashboardPage />} />
+              <Route path="threat-map" element={<ThreatMapPage />} />
+              <Route path="live-feed" element={<LiveFeedPage />} />
+              <Route path="actors" element={<ThreatActorsPage />} />
+              <Route path="credentials" element={<CredentialsPage />} />
+              <Route path="ioc" element={<IocPage />} />
+              <Route path="sdn" element={<SdnMonitoringPage />} />
+              <Route path="ai-integrations" element={<AiIntegrationsPage />} />
+            </Route>
+          </Routes>
+        </TooltipProvider>
+      </MotionConfig>
     </QueryClientProvider>
   );
 }

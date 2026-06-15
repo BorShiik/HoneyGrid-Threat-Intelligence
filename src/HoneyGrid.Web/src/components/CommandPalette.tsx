@@ -17,13 +17,15 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LANGS, LANG_META } from '@/i18n';
+import { CountryFlag } from '@/components/ui/CountryFlag';
 
 /** Custom event the topbar search button dispatches to open the palette. */
 export const OPEN_COMMAND_EVENT = 'hg:command';
 
 interface Command {
   id: string;
-  label: string;
+  label: React.ReactNode;
+  searchText: string;
   icon: React.ComponentType<{ className?: string }>;
   group: 'nav' | 'lang';
   run: () => void;
@@ -59,19 +61,28 @@ export function CommandPalette() {
   }, []);
 
   const commands = useMemo<Command[]>(() => {
-    const nav = NAV.map((n) => ({
-      id: `nav:${n.to}`,
-      label: t(n.labelKey),
-      icon: n.icon,
-      group: 'nav' as const,
-      run: () => {
-        navigate(n.to);
-        close();
-      },
-    }));
+    const nav = NAV.map((n) => {
+      const translated = t(n.labelKey);
+      return {
+        id: `nav:${n.to}`,
+        label: translated,
+        searchText: translated,
+        icon: n.icon,
+        group: 'nav' as const,
+        run: () => {
+          navigate(n.to);
+          close();
+        },
+      };
+    });
     const langs = LANGS.map((l) => ({
       id: `lang:${l}`,
-      label: `${LANG_META[l].flag}  ${LANG_META[l].label}`,
+      label: (
+        <span className="flex items-center gap-2">
+          <CountryFlag code={LANG_META[l].flag} /> {LANG_META[l].label}
+        </span>
+      ),
+      searchText: `${LANG_META[l].flag} ${LANG_META[l].label}`,
       icon: Languages,
       group: 'lang' as const,
       run: () => {
@@ -85,7 +96,7 @@ export function CommandPalette() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return commands;
-    return commands.filter((c) => c.label.toLowerCase().includes(q));
+    return commands.filter((c) => c.searchText.toLowerCase().includes(q));
   }, [commands, query]);
 
   // Global ⌘K / Ctrl+K toggle + custom open event.

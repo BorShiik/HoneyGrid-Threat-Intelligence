@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { supportsWebGL } from '@/lib/webgl';
+import { useReducedMotion } from '@/lib/useReducedMotion';
 
 // Code-split the three.js scene so it never enters the bundle (or executes) on
 // routes — or test environments — that don't render it.
@@ -14,7 +15,8 @@ const DatascapeScene = lazy(() => import('./DatascapeScene'));
  * blank.
  */
 export function DatascapeBackground() {
-  const webgl = supportsWebGL();
+  const reducedMotion = useReducedMotion();
+  const webgl = supportsWebGL() && !reducedMotion;
 
   return (
     <div aria-hidden className="fixed inset-0 -z-10 overflow-hidden bg-[#09090b]">
