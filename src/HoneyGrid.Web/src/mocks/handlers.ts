@@ -117,4 +117,55 @@ export const handlers = [
 
   // GET /api/iocs/stix
   http.get('/api/iocs/stix', () => HttpResponse.json(generateStixBundle())),
+
+  // GET /api/sdn/nodes
+  http.get('/api/sdn/nodes', () => {
+    return HttpResponse.json([
+      { id: 'sdn-01', name: 'Edge-WEU-01', location: 'frankfurt', status: 'active', dynamicMigration: true },
+      { id: 'sdn-02', name: 'Edge-WEU-02', location: 'amsterdam', status: 'active', dynamicMigration: false },
+      { id: 'sdn-03', name: 'Core-NEU-01', location: 'dublin', status: 'active', dynamicMigration: true },
+      { id: 'sdn-04', name: 'Edge-EUS-01', location: 'virginia', status: 'degraded', dynamicMigration: true },
+      { id: 'sdn-05', name: 'Edge-SEA-01', location: 'singapore', status: 'active', dynamicMigration: false },
+      { id: 'sdn-06', name: 'Core-WUS-01', location: 'seattle', status: 'offline', dynamicMigration: false },
+    ]);
+  }),
+
+  // POST /api/sdn/nodes/{id}/migration
+  http.post('/api/sdn/nodes/:id/migration', async ({ params }) => {
+    // Return a mock toggled node
+    return HttpResponse.json({
+      id: params.id,
+      dynamicMigration: true // In a real mock we'd track state, but returning success is enough for UI
+    });
+  }),
+
+  // GET /api/mcp/servers
+  http.get('/api/mcp/servers', () => {
+    return HttpResponse.json([
+      {
+        id: 'mcp-01', name: 'ThreatIntel Analyzer', provider: 'Cloudflare Workers AI',
+        status: 'connected', endpoint: 'https://ti-analyzer.honeygrid.workers.dev',
+        tools: ['query_threat_logs', 'enrich_ip', 'classify_attack', 'generate_ioc'],
+        lastPing: 12, requestsToday: 847,
+      },
+      {
+        id: 'mcp-02', name: 'Sentinel Bridge', provider: 'Azure Functions',
+        status: 'connected', endpoint: 'https://hg-sentinel-bridge.azurewebsites.net/mcp',
+        tools: ['create_incident', 'update_watchlist', 'run_kql_query'],
+        lastPing: 34, requestsToday: 312,
+      },
+      {
+        id: 'mcp-03', name: 'Actor Profiler', provider: 'Azure OpenAI (gpt-4o-mini)',
+        status: 'connected', endpoint: 'https://hg-ai-profiler.openai.azure.com',
+        tools: ['build_actor_dossier', 'cluster_sessions', 'assess_sophistication'],
+        lastPing: 89, requestsToday: 156,
+      },
+      {
+        id: 'mcp-04', name: 'OSINT Enrichment', provider: 'Self-hosted',
+        status: 'disconnected', endpoint: 'https://osint.internal.honeygrid.net/v1',
+        tools: ['whois_lookup', 'dns_history', 'certificate_transparency'],
+        lastPing: -1, requestsToday: 0,
+      }
+    ]);
+  }),
 ];

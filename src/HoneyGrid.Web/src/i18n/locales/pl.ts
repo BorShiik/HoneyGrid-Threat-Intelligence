@@ -61,6 +61,15 @@ export const pl = {
     firstSeen: 'Pierwsza aktywność',
     lastSeen: 'Ostatnia aktywność',
     knownIps: 'Znane adresy IP',
+    globalAnalytics: 'Globalna analityka zagrożeń',
+    globalSubtitle: 'Przegląd wszystkich śledzonych kampanii i grup. Analiza aktywności modeli AI w oparciu o wzorce behawioralne, znane infrastruktury i łańcuchy ataków.',
+    tracked: 'Śledzone',
+    totalEvents: 'Zdarzeń łącznie',
+    anomaliesDetected: 'Wykryto anomaliów: ',
+    severityDistribution: 'Rozkład wg poziomu zagrożenia',
+    topCountries: 'Top atakujących/ofiar (Kraje)',
+    groups: 'grupy',
+    searchPlaceholder: 'Szukaj aktorów...',
   },
   credentials: {
     title: 'Analiza poświadczeń',
@@ -133,6 +142,14 @@ export const pl = {
     cpu: 'CPU',
     ram: 'RAM',
     connections: 'Połączeń',
+    location: {
+      frankfurt: 'Frankfurt',
+      amsterdam: 'Amsterdam',
+      dublin: 'Dublin',
+      virginia: 'Wirginia',
+      singapore: 'Singapur',
+      seattle: 'Seattle',
+    },
   },
   ai: {
     title: 'Integracje AI (MCP)',
@@ -144,6 +161,7 @@ export const pl = {
     requests: 'Zapytań',
     configuration: 'Konfiguracja',
     ping: 'Ping',
+    availableTools: 'Zarejestrowane narzędzia',
   },
   ioc: {
     title: 'Wskaźniki IoC (STIX)',

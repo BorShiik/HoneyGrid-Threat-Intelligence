@@ -63,6 +63,15 @@ export const ru: Resources = {
     firstSeen: 'Первая активность',
     lastSeen: 'Последняя активность',
     knownIps: 'Известные IP-адреса',
+    globalAnalytics: 'Глобальная Аналитика Угроз',
+    globalSubtitle: 'Обзор всех отслеживаемых кампаний и группировок. Анализ активности ИИ-моделями на основе паттернов поведения, известных инфраструктур и цепочек атак.',
+    tracked: 'Отслеживается',
+    totalEvents: 'Всего Событий',
+    anomaliesDetected: 'Обнаружено аномальных паттернов: ',
+    severityDistribution: 'Распределение по уровню угрозы',
+    topCountries: 'Топ атакующих/жертв (Страны)',
+    groups: 'гр.',
+    searchPlaceholder: 'Поиск акторов...',
   },
   credentials: {
     title: 'Анализ учётных данных',
@@ -135,6 +144,14 @@ export const ru: Resources = {
     cpu: 'CPU',
     ram: 'RAM',
     connections: 'Соединений',
+    location: {
+      frankfurt: 'Франкфурт',
+      amsterdam: 'Амстердам',
+      dublin: 'Дублин',
+      virginia: 'Вирджиния',
+      singapore: 'Сингапур',
+      seattle: 'Сиэтл',
+    },
   },
   ai: {
     title: 'Интеграции ИИ (MCP)',
@@ -146,6 +163,7 @@ export const ru: Resources = {
     requests: 'Запросов',
     configuration: 'Конфигурация',
     ping: 'Пинг',
+    availableTools: 'Доступные инструменты',
   },
   ioc: {
     title: 'Индикаторы компрометации (STIX)',

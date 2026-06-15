@@ -101,9 +101,10 @@ export function GlobeBase() {
   const borderMaterial = useMemo(
     () =>
       new THREE.LineBasicMaterial({
-        color: new THREE.Color('#27272a'),
+        color: new THREE.Color('#f59e0b'), // Brand amber color
         transparent: true,
-        opacity: 0.9,
+        opacity: 0.35, // Bright enough to see the detailed borders, dim enough to not overpower arcs
+        blending: THREE.AdditiveBlending, // Give it a slight glowing neon feel
       }),
     [],
   );

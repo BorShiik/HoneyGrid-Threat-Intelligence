@@ -156,7 +156,7 @@ function GlobalStatsDashboard({ actors }: { actors: ThreatActor[] }) {
           {t('actors.globalAnalytics', 'Глобальная Аналитика Угроз')}
         </h3>
         <p className="text-zinc-500 mt-2 text-sm max-w-xl leading-relaxed">
-          Обзор всех отслеживаемых кампаний и группировок. Анализ активности ИИ-моделями на основе паттернов поведения, известных инфраструктур и цепочек атак.
+          {t('actors.globalSubtitle', 'Обзор всех отслеживаемых кампаний и группировок. Анализ активности ИИ-моделями на основе паттернов поведения, известных инфраструктур и цепочек атак.')}
         </p>
       </div>
 
@@ -172,7 +172,7 @@ function GlobalStatsDashboard({ actors }: { actors: ThreatActor[] }) {
         <div className="col-span-2 p-4 rounded-xl bg-black/40 border border-white/5 shadow-inner flex items-center justify-between">
             <div className="space-y-1">
               <div className="text-zinc-500 text-xs font-semibold uppercase tracking-widest flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5 text-rose-500"/> AI Threat Insights</div>
-              <div className="text-sm text-zinc-300">Обнаружено аномальных паттернов: <span className="text-amber-400 font-mono font-bold">12</span></div>
+              <div className="text-sm text-zinc-300">{t('actors.anomaliesDetected', 'Обнаружено аномальных паттернов: ')}<span className="text-amber-400 font-mono font-bold">12</span></div>
             </div>
             <Activity className="h-8 w-8 text-zinc-800" />
         </div>
@@ -183,7 +183,7 @@ function GlobalStatsDashboard({ actors }: { actors: ThreatActor[] }) {
         <div className="rounded-xl bg-black/20 border border-white/5 p-5 flex flex-col">
           <h4 className="text-sm font-semibold text-zinc-300 mb-4 flex items-center gap-2">
             <BarChart2 className="h-4 w-4 text-zinc-500"/>
-            Распределение по уровню угрозы
+            {t('actors.severityDistribution', 'Распределение по уровню угрозы')}
           </h4>
           <div className="flex-1 min-h-[200px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -215,7 +215,7 @@ function GlobalStatsDashboard({ actors }: { actors: ThreatActor[] }) {
         <div className="rounded-xl bg-black/20 border border-white/5 p-5 flex flex-col">
            <h4 className="text-sm font-semibold text-zinc-300 mb-4 flex items-center gap-2">
             <Target className="h-4 w-4 text-zinc-500"/>
-            Топ атакующих/жертв (Страны)
+            {t('actors.topCountries', 'Топ атакующих/жертв (Страны)')}
           </h4>
           <div className="flex-1 min-h-[200px]">
              <ResponsiveContainer width="100%" height="100%">
@@ -240,7 +240,7 @@ function GlobalStatsDashboard({ actors }: { actors: ThreatActor[] }) {
               {stats.topCountries.map((c) => (
                 <div key={c.country} className="flex justify-between items-center text-xs">
                   <span className="flex items-center gap-2"><CountryFlag code={c.country} className="text-sm"/> <span className="text-zinc-400">{c.country}</span></span>
-                  <span className="font-mono text-zinc-500">{c.count} гр.</span>
+                  <span className="font-mono text-zinc-500">{c.count} {t('actors.groups', 'гр.')}</span>
                 </div>
               ))}
            </div>

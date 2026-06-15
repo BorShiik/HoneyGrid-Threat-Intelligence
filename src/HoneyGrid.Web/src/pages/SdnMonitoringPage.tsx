@@ -6,38 +6,8 @@ import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts';
 import { cn } from '@/lib/utils';
 import { formatInt } from '@/lib/format';
 
-/* ── Mock Data Generation ── */
-interface SdnNode {
-  id: string;
-  name: string;
-  location: string;
-  status: 'active' | 'degraded' | 'offline';
-  cpu: number;
-  ram: number;
-  filteredTraffic: number;
-  dynamicMigration: boolean;
-  connections: number;
-  trafficHistory: { time: string; value: number }[];
-}
-
-const generateHistory = (base: number, volatility: number, length: number = 20) => {
-  const data = [];
-  let current = base;
-  for (let i = 0; i < length; i++) {
-    current = Math.max(0, current + (Math.random() - 0.5) * volatility);
-    data.push({ time: i.toString(), value: Math.round(current) });
-  }
-  return data;
-};
-
-const MOCK_NODES: SdnNode[] = [
-  { id: 'sdn-01', name: 'Edge-WEU-01', location: 'Франкфурт', status: 'active', cpu: 42, ram: 67, filteredTraffic: 12840, dynamicMigration: true, connections: 847, trafficHistory: generateHistory(1000, 200) },
-  { id: 'sdn-02', name: 'Edge-WEU-02', location: 'Амстердам', status: 'active', cpu: 28, ram: 45, filteredTraffic: 8320, dynamicMigration: false, connections: 623, trafficHistory: generateHistory(800, 150) },
-  { id: 'sdn-03', name: 'Core-NEU-01', location: 'Дублин', status: 'active', cpu: 71, ram: 83, filteredTraffic: 23100, dynamicMigration: true, connections: 1204, trafficHistory: generateHistory(2500, 500) },
-  { id: 'sdn-04', name: 'Edge-EUS-01', location: 'Вирджиния', status: 'degraded', cpu: 89, ram: 91, filteredTraffic: 31200, dynamicMigration: true, connections: 1890, trafficHistory: generateHistory(3000, 800) },
-  { id: 'sdn-05', name: 'Edge-SEA-01', location: 'Сингапур', status: 'active', cpu: 35, ram: 52, filteredTraffic: 6750, dynamicMigration: false, connections: 412, trafficHistory: generateHistory(600, 100) },
-  { id: 'sdn-06', name: 'Core-WUS-01', location: 'Сиэтл', status: 'offline', cpu: 0, ram: 12, filteredTraffic: 0, dynamicMigration: false, connections: 0, trafficHistory: generateHistory(0, 0) },
-];
+import { useSdnTelemetry } from '@/lib/useSdnTelemetry';
+import type { SdnNode } from '@/lib/useSdnTelemetry';
 
 /* ── Styled Circular Progress ── */
 function CircularGauge({ value, label, color, offline }: { value: number; label: string; color: string; offline?: boolean }) {
@@ -106,7 +76,7 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
   const chartData = data.map((d, i) => ({ value: d, index: i }));
   return (
     <div className="h-8 w-24">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
         <AreaChart data={chartData}>
           <defs>
             <linearGradient id={`color-${color}`} x1="0" y1="0" x2="0" y2="1">
@@ -166,7 +136,7 @@ function NodeCard({ node, onToggle }: { node: SdnNode; onToggle: (id: string) =>
             )} />
             <span className={cn("font-mono text-[15px] font-bold tracking-tight", isOffline ? "text-zinc-500" : "text-zinc-100")}>{node.name}</span>
           </div>
-          <span className="text-xs text-zinc-500 font-medium ml-4.5 block mt-0.5">{node.location}</span>
+          <span className="text-xs text-zinc-500 font-medium ml-4.5 block mt-0.5">{t(`sdn.location.${node.location}`, node.location)}</span>
         </div>
         <div className={cn(
           'rounded-md px-2 py-1 text-[10px] font-bold uppercase tracking-wider border flex items-center gap-1.5 shadow-inner',
@@ -188,7 +158,7 @@ function NodeCard({ node, onToggle }: { node: SdnNode; onToggle: (id: string) =>
 
       {/* Traffic Mini-Chart */}
       <div className="relative z-20 h-16 -mx-2 -mb-2 border-t border-white/[0.03] pt-2">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
           <AreaChart data={node.trafficHistory}>
             <defs>
               <linearGradient id={`grad-${node.id}`} x1="0" y1="0" x2="0" y2="1">
@@ -238,28 +208,20 @@ function NodeCard({ node, onToggle }: { node: SdnNode; onToggle: (id: string) =>
    ══════════════════════════════════════════════════════════════════════ */
 export function SdnMonitoringPage() {
   const { t } = useTranslation();
-  const [nodes, setNodes] = useState(MOCK_NODES);
+  const { nodes, loading, toggleMigration } = useSdnTelemetry();
   
   // Simulated Global Traffic Data
-  const [globalTraffic, setGlobalTraffic] = useState(() => generateHistory(50000, 5000, 40));
+  const [globalTraffic, setGlobalTraffic] = useState<{ time: string; value: number }[]>([]);
 
   useEffect(() => {
-    // Simulate real-time updates for global traffic
-    const interval = setInterval(() => {
-      setGlobalTraffic(prev => {
-        const last = prev[prev.length - 1].value;
-        const next = Math.max(20000, last + (Math.random() - 0.5) * 8000);
-        return [...prev.slice(1), { time: Date.now().toString(), value: next }];
-      });
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const toggleMigration = (id: string) => {
-    setNodes((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, dynamicMigration: !n.dynamicMigration } : n)),
-    );
-  };
+    if (nodes.length === 0) return;
+    const totalCurrentTraffic = nodes.reduce((s, n) => s + n.filteredTraffic, 0);
+    setGlobalTraffic(prev => {
+      const next = Math.max(20000, totalCurrentTraffic);
+      const newArray = prev.length < 40 ? [...prev, { time: Date.now().toString(), value: next }] : [...prev.slice(1), { time: Date.now().toString(), value: next }];
+      return newArray;
+    });
+  }, [nodes]);
 
   const stats = {
     active: nodes.filter((n) => n.status === 'active').length,
@@ -293,11 +255,11 @@ export function SdnMonitoringPage() {
             <div className="flex flex-col">
               <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-500/80">Global Throughput</span>
               <span className="text-2xl font-mono font-bold text-white shadow-sm flex items-baseline gap-1">
-                {formatInt(globalTraffic[globalTraffic.length - 1].value)} <span className="text-xs text-zinc-500 font-sans font-medium">pps</span>
+                {globalTraffic.length > 0 ? formatInt(globalTraffic[globalTraffic.length - 1].value) : '--'} <span className="text-xs text-zinc-500 font-sans font-medium">pps</span>
               </span>
             </div>
          </div>
-         <ResponsiveContainer width="100%" height="100%" className="absolute inset-0 pt-8">
+         <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} className="absolute inset-0 pt-8">
           <AreaChart data={globalTraffic} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="globalTrafficGrad" x1="0" y1="0" x2="0" y2="1">

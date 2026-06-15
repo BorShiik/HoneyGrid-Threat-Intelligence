@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mesh } from 'topojson-client';
-import worldRaw from 'world-atlas/countries-110m.json';
+import worldRaw from 'world-atlas/countries-50m.json';
 import { latLngToVector3 } from './globeMath';
 
 /**
