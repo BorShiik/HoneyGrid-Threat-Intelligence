@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Brain, CheckCircle2, ChevronDown, ExternalLink, Settings, Terminal, Wifi, WifiOff, Wrench } from 'lucide-react';
+import { Brain, CheckCircle2, ChevronDown, Settings, Terminal, WifiOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 
@@ -119,8 +119,8 @@ function ServerCard({ server }: { server: McpServer }) {
 
         {/* Stats */}
         <div className="flex items-center gap-4 text-xs text-zinc-500">
-          <span>Пинг: <span className={cn('font-mono', server.lastPing > 0 ? 'text-zinc-300' : 'text-zinc-600')}>{server.lastPing > 0 ? `${server.lastPing}ms` : '—'}</span></span>
-          <span>Запросов: <span className="font-mono text-zinc-300">{server.requestsToday}</span></span>
+          <span>{t('ai.ping')}: <span className={cn('font-mono', server.lastPing > 0 ? 'text-zinc-300' : 'text-zinc-600')}>{server.lastPing > 0 ? `${server.lastPing}ms` : '—'}</span></span>
+          <span>{t('ai.requests')}: <span className="font-mono text-zinc-300">{server.requestsToday}</span></span>
         </div>
 
         {/* Config toggle */}
@@ -129,7 +129,7 @@ function ServerCard({ server }: { server: McpServer }) {
           className="flex items-center gap-1.5 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
         >
           <Settings className="h-3 w-3" />
-          Конфигурация
+          {t('ai.configuration')}
           <ChevronDown className={cn('h-3 w-3 transition-transform', configOpen && 'rotate-180')} />
         </button>
 
@@ -191,7 +191,8 @@ export function AiIntegrationsPage() {
           <Terminal className="h-4 w-4 text-zinc-500" />
           <h3 className="text-sm font-semibold text-zinc-200">{t('ai.auditLog')}</h3>
         </div>
-        <div className="max-h-80 overflow-y-auto">
+        <div className="overflow-x-auto">
+        <div className="min-w-[640px] max-h-80 overflow-y-auto">
           {MOCK_AUDIT.map((entry) => (
             <div
               key={entry.id}
@@ -218,6 +219,7 @@ export function AiIntegrationsPage() {
               </span>
             </div>
           ))}
+        </div>
         </div>
       </div>
     </motion.section>

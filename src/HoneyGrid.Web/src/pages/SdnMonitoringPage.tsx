@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Network, Cpu, HardDrive, Shield, Activity, ArrowRightLeft } from 'lucide-react';
+import { Network, Shield, Activity, ArrowRightLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 
@@ -128,7 +128,7 @@ function NodeCard({ node, onToggle }: { node: SdnNode; onToggle: (id: string) =>
           <div className="font-mono font-medium text-zinc-200">{node.filteredTraffic.toLocaleString()}</div>
         </div>
         <div className="rounded-lg bg-black/30 p-2">
-          <div className="text-zinc-500 flex items-center gap-1"><Activity className="h-3 w-3" /> Соединений</div>
+          <div className="text-zinc-500 flex items-center gap-1"><Activity className="h-3 w-3" /> {t('sdn.connections')}</div>
           <div className="font-mono font-medium text-zinc-200">{node.connections.toLocaleString()}</div>
         </div>
       </div>
@@ -177,7 +177,7 @@ export function SdnMonitoringPage() {
       </div>
 
       {/* KPI Row */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="rounded-xl glass-strong p-4">
           <div className="text-xs text-zinc-500">{t('topbar.online')}</div>
           <div className="text-2xl font-bold text-emerald-400 font-mono">{stats.active}/{nodes.length}</div>

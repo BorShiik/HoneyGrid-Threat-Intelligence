@@ -840,6 +840,8 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'AZURE_CLIENT_ID', value: apiIdentityClientId }
             // ASP.NET — nasłuch na 8080 (zgodny z targetPort ingressu).
             { name: 'ASPNETCORE_URLS', value: 'http://+:8080' }
+            // Observability — OpenTelemetry (UseAzureMonitor) eksportuje do App Insights.
+            { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
           ]
         }
       ]

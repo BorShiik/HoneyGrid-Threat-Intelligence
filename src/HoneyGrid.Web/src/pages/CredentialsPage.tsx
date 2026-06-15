@@ -214,25 +214,29 @@ export function CredentialsPage() {
             <div className="border-b border-white/5 px-4 py-2.5 text-sm font-semibold text-zinc-200">
               {t('credentials.pairsTitle')}
             </div>
-            <div className="grid grid-cols-[1fr_1fr_auto_5rem] gap-2 border-b border-white/5 px-4 py-2 text-[11px] uppercase tracking-wider text-zinc-600">
-              <span>{t('credentials.colLogin')}</span>
-              <span>{t('credentials.colPassword')}</span>
-              <span className="text-right">{t('credentials.colAttempts')}</span>
-              <span />
-            </div>
-            {data.topPairs.map((p) => (
-              <div
-                key={`${p.username}:${p.password}`}
-                className="grid grid-cols-[1fr_1fr_auto_5rem] items-center gap-2 border-b border-white/[0.03] px-4 py-2 text-sm last:border-b-0 hover:bg-white/[0.03] transition-colors"
-              >
-                <code className="font-mono text-zinc-300 truncate">{p.username}</code>
-                <code className="font-mono text-zinc-400 truncate">{p.password}</code>
-                <span className="text-right font-mono text-xs tabular-nums text-zinc-300">{formatInt(p.count)}</span>
-                <div className="h-1.5 rounded-full bg-zinc-800/60 overflow-hidden">
-                  <div className="h-full rounded-full bg-amber-500/60" style={{ width: `${(p.count / maxPairCount) * 100}%` }} />
+            <div className="overflow-x-auto">
+              <div className="min-w-[400px]">
+                <div className="grid grid-cols-[1fr_1fr_auto_5rem] gap-2 border-b border-white/5 px-4 py-2 text-[11px] uppercase tracking-wider text-zinc-600">
+                  <span>{t('credentials.colLogin')}</span>
+                  <span>{t('credentials.colPassword')}</span>
+                  <span className="text-right">{t('credentials.colAttempts')}</span>
+                  <span />
                 </div>
+                {data.topPairs.map((p) => (
+                  <div
+                    key={`${p.username}:${p.password}`}
+                    className="grid grid-cols-[1fr_1fr_auto_5rem] items-center gap-2 border-b border-white/[0.03] px-4 py-2 text-sm last:border-b-0 hover:bg-white/[0.03] transition-colors"
+                  >
+                    <code className="font-mono text-zinc-300 truncate">{p.username}</code>
+                    <code className="font-mono text-zinc-400 truncate">{p.password}</code>
+                    <span className="text-right font-mono text-xs tabular-nums text-zinc-300">{formatInt(p.count)}</span>
+                    <div className="h-1.5 rounded-full bg-zinc-800/60 overflow-hidden">
+                      <div className="h-full rounded-full bg-amber-500/60" style={{ width: `${(p.count / maxPairCount) * 100}%` }} />
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </motion.div>
         </>
       ) : null}

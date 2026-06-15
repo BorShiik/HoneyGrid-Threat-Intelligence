@@ -18,6 +18,9 @@ param namePrefix string
 param location string
 param tags object
 
+@description('Czy wdrażać Azure Maps. Domyślnie false — dashboard używa globusa 3D (react-globe.gl), nie Azure Maps.')
+param deployMaps bool = false
+
 var suffix = uniqueString(resourceGroup().id)
 
 var openAiAccountName = '${namePrefix}-${environment}-oai-${suffix}'
@@ -44,11 +47,11 @@ resource openAiAccount 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
   }
 }
 
-// Deployment gpt-4o-mini — najtańszy model z sensowną jakością klasyfikacji.
+// Deployment gpt-5.4-nano — model klasyfikacji sesji (Track B).
 // GlobalStandard rozlicza per token (brak stałej opłaty) — pasuje do budżetu.
-resource gpt4oMiniDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = {
+resource gptDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = {
   parent: openAiAccount
-  name: 'gpt-4o-mini'
+  name: 'gpt-5.4-nano'
   sku: {
     name: 'GlobalStandard'
     capacity: 8 // 8k TPM — wystarczy na klasyfikację sesji z kolejki
@@ -56,18 +59,18 @@ resource gpt4oMiniDeployment 'Microsoft.CognitiveServices/accounts/deployments@2
   properties: {
     model: {
       format: 'OpenAI'
-      name: 'gpt-4o-mini'
-      version: '2024-07-18'
+      name: 'gpt-5.4-nano'
+      // UWAGA: ustaw wersję modelu dostępną w Twoim regionie/koncie
+      // (portal → Azure AI Foundry → Model deployments → wersje gpt-5.4-nano).
+      version: '2025-08-01'
     }
-    // TODO (Tydzień 3, Track B): dostroić capacity po pomiarze realnego
-    // wolumenu sesji; ewentualnie content filter pod treści ataków.
   }
 }
 
 // ---------------------------------------------------------------------------
 // Azure Maps — Gen2, SKU G2 (darmowe 1000 transakcji geolokalizacji/mies. i więcej)
 // ---------------------------------------------------------------------------
-resource mapsAccount 'Microsoft.Maps/accounts@2023-06-01' = {
+resource mapsAccount 'Microsoft.Maps/accounts@2023-06-01' = if (deployMaps) {
   name: mapsAccountName
   location: location
   tags: tags
@@ -101,7 +104,7 @@ resource mapsAccount 'Microsoft.Maps/accounts@2023-06-01' = {
 output openAiAccountId string = openAiAccount.id
 output openAiAccountName string = openAiAccount.name
 output openAiEndpoint string = openAiAccount.properties.endpoint
-output gptDeploymentName string = gpt4oMiniDeployment.name
+output gptDeploymentName string = gptDeployment.name
 
-output mapsAccountId string = mapsAccount.id
-output mapsAccountName string = mapsAccount.name
+output mapsAccountId string = deployMaps ? mapsAccount!.id : ''
+output mapsAccountName string = deployMaps ? mapsAccount!.name : ''

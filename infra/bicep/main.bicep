@@ -233,6 +233,30 @@ module ai 'modules/ai.bicep' = if (deployTrackB) {
   }
 }
 
+// Function App (Track B): host konwejera funkcji (klasyfikacja, FanOut→SignalR,
+// agregaty, korelacja aktorów, negotiate, briefing). Tylko gdy deployTrackB —
+// wymaga Azure OpenAI (moduł ai) i SignalR (moduł app). Bezkluczowo: tożsamość
+// systemowa + role na Cosmos/Storage/OpenAI/SignalR nadane wewnątrz modułu.
+module functions 'modules/functions.bicep' = if (deployTrackB) {
+  scope: rg
+  name: 'functions-${environment}'
+  params: {
+    environment: environment
+    namePrefix: namePrefix
+    location: location
+    tags: tags
+    storageAccountName: data.outputs.storageAccountName
+    appInsightsConnectionString: app.outputs.appInsightsConnectionString
+    cosmosAccountName: data.outputs.cosmosAccountName
+    cosmosEndpoint: data.outputs.cosmosEndpoint
+    openAiAccountName: ai!.outputs.openAiAccountName
+    openAiEndpoint: ai!.outputs.openAiEndpoint
+    openAiDeploymentName: ai!.outputs.gptDeploymentName
+    signalRName: app.outputs.signalRName
+    signalREndpoint: app.outputs.signalREndpoint
+  }
+}
+
 // Private Link (Track A, Tydzień 1): strefy Private DNS + Private Endpoints
 // w snet-data dla Cosmos DB / Blob Storage / Key Vault. Event Hubs (Basic)
 // i Service Bus (Basic) świadomie BEZ PE — uzasadnienie w privatelink.bicep.
@@ -322,9 +346,15 @@ output dceLogsIngestionEndpoint string = sentinel.outputs.dceLogsIngestionEndpoi
 output dcrStreamName string = sentinel.outputs.dcrStreamName
 output cowrieTableName string = sentinel.outputs.cowrieTableName
 
-// Wyjścia Track B — puste gdy deployTrakB=false (moduł ai nie wdrożony).
+// Wyjścia Track B — puste gdy deployTrakB=false (moduły ai/functions nie wdrożone).
 output openAiEndpoint string = deployTrackB ? ai!.outputs.openAiEndpoint : ''
 output mapsAccountName string = deployTrackB ? ai!.outputs.mapsAccountName : ''
+output openAiDeploymentName string = deployTrackB ? ai!.outputs.gptDeploymentName : ''
+
+// Function App (Track B): nazwa do `func azure functionapp publish` + hostname (negotiate).
+output functionAppName string = deployTrackB ? functions!.outputs.functionAppName : ''
+output functionAppHostname string = deployTrackB ? functions!.outputs.functionAppHostname : ''
+output signalREndpoint string = app.outputs.signalREndpoint
 
 // Płaszczyzna bezpieczeństwa (moduł security — Tydzień 1, Track A).
 output keyVaultUri string = security.outputs.keyVaultUri

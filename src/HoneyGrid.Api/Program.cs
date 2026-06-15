@@ -1,36 +1,36 @@
 using Azure.Identity;
+using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Azure.Storage.Blobs;
 using HoneyGrid.Api.Features.Actors;
 using HoneyGrid.Api.Features.Feed;
 using HoneyGrid.Api.Features.Sessions;
 using HoneyGrid.Api.Features.Stats;
 using HoneyGrid.Api.Features.Stix;
-using HoneyGrid.Api.Hubs;
 using HoneyGrid.Contracts;
 using Microsoft.Azure.Cosmos;
 
-// HoneyGrid.Api — publiczne API platformy + SignalR (mapa ataków na żywo) +
-// (Tydzień 7, Track A) endpointy killer-ficzy: /api/iocs/stix oraz
-// /api/sessions/{id}/replay. Dostęp do danych BEZKLUCZOWO (DefaultAzureCredential:
-// lokalnie az login, w chmurze Managed Identity id-api — tylko do ODCZYTU).
+// HoneyGrid.Api — publiczne API platformy (REST, tylko ODCZYT, bezkluczowo).
+// Realtime (mapa / lenta na żywo) NIE jest hostowany tutaj: w modelu Serverless
+// rozsyłaniem zajmują się funkcje (FanOutToSignalR + negotiate), a klient łączy się
+// bezpośrednio z Azure SignalR Service. Dostęp do danych przez DefaultAzureCredential
+// (lokalnie `az login`, w chmurze Managed Identity id-api — least privilege, odczyt).
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- SignalR — strumień zdarzeń ataków do dashboardu (HoneyGrid.Web) ---
-builder.Services.AddSignalR()
-    .AddJsonProtocol(options =>
-    {
-        // Spójny format JSON z resztą platformy (camelCase, enumy jako stringi).
-        options.PayloadSerializerOptions.PropertyNamingPolicy = HoneyGridJson.Options.PropertyNamingPolicy;
-        options.PayloadSerializerOptions.DefaultIgnoreCondition = HoneyGridJson.Options.DefaultIgnoreCondition;
-    });
+// --- Observability: OpenTelemetry → Azure Monitor (Application Insights).
+// Eksport włącza się, gdy ustawiono APPLICATIONINSIGHTS_CONNECTION_STRING;
+// bez niej (lokalnie/dev) telemetryia po prostu nie jest wysyłana.
+if (!string.IsNullOrWhiteSpace(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
+{
+    builder.Services.AddOpenTelemetry().UseAzureMonitor();
+}
 
 builder.Services.AddHealthChecks();
 
 // --- Klienci danych: bezkluczowo, jeden DefaultAzureCredential dla całego hosta.
-// Endpointy (StixEndpoints, SessionEndpoints) pobierają je z DI — nie tworzą same.
-// Konfiguracja z sekcji "HoneyGrid" (env: HoneyGrid__CosmosEndpoint, __BlobServiceUri).
-// Puste wartości (kompilacja/dev) => klient nierejestrowany; w chmurze wstrzykuje je Bicep.
+// Endpointy pobierają klientów z DI — nie tworzą ich same. Konfiguracja z sekcji
+// "HoneyGrid" (env: HoneyGrid__CosmosEndpoint, __BlobServiceUri). Puste wartości
+// (kompilacja/dev) => klient nierejestrowany; w chmurze wstrzykuje je Bicep.
 var cosmosEndpoint = builder.Configuration["HoneyGrid:CosmosEndpoint"];
 var blobServiceUri = builder.Configuration["HoneyGrid:BlobServiceUri"];
 var credential = new DefaultAzureCredential();
@@ -69,18 +69,14 @@ app.MapHealthChecks("/health");
 app.MapGet("/", () => Results.Ok(new { service = "HoneyGrid.Api", status = "ok" }));
 
 // --- Track B: API dashboardu (feed, statystyki, aktorzy) ---
-// Wszystkie wymagają zarejestrowanego CosmosClient (tylko odczyt).
 app.MapFeedEndpoints();
 app.MapStatsEndpoints();
 app.MapActorEndpoints();
 
-// --- Tydzień 7, Track A: killer-ficzy ---
+// --- Track A: killer-ficzy ---
 // STIX 2.1 / IoC feed (silnik HoneyGrid.Stix) — wymaga zarejestrowanego CosmosClient.
 app.MapStixEndpoints();
 // Session Replay (parser HoneyGrid.Replay) — wymaga CosmosClient + BlobServiceClient.
 app.MapSessionEndpoints();
-
-// Hub SignalR — dashboard subskrybuje zdarzenia ataków w czasie rzeczywistym.
-app.MapHub<AttackHub>("/hubs/attacks");
 
 app.Run();

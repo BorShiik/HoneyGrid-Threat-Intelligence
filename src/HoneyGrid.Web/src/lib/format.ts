@@ -16,6 +16,22 @@ export const SENSOR_LABELS: Record<SensorType, string> = {
   rdp: 'RDP',
 };
 
+/**
+ * Maps an event-type value (which may contain dots, e.g. "login.failed") to the
+ * dot-free i18n sub-key under `eventType.*`. Use as: t(`eventType.${eventTypeKey(e.eventType)}`).
+ */
+const EVENT_TYPE_KEYS: Record<HoneypotEventType, string> = {
+  'login.failed': 'loginFailed',
+  'login.success': 'loginSuccess',
+  command: 'command',
+  'http.request': 'httpRequest',
+  connect: 'connect',
+};
+
+export function eventTypeKey(type: HoneypotEventType): string {
+  return EVENT_TYPE_KEYS[type] ?? 'connect';
+}
+
 const intFmt = new Intl.NumberFormat('pl-PL');
 
 /** Formats an integer with Polish thousands separators. */

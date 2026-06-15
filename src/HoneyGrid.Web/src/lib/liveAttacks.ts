@@ -133,6 +133,14 @@ export function synthesizeEvent(): HoneypotEvent {
   return event;
 }
 
+/**
+ * Global event bus for attacks. Every pushed event (real hub or simulator) is
+ * dispatched here so lightweight consumers — like the critical-attack toaster —
+ * can react to the same stream without opening a second connection.
+ */
+export const attackBus = new EventTarget();
+export const ATTACK_BUS_EVENT = 'attack';
+
 export function useLiveAttacks(options?: UseLiveAttacksOptions): UseLiveAttacksResult {
   const bufferSize = options?.bufferSize ?? 200;
   const enabled = options?.enabled ?? true;
@@ -153,6 +161,7 @@ export function useLiveAttacks(options?: UseLiveAttacksOptions): UseLiveAttacksR
     const push = (event: HoneypotEvent) => {
       if (disposed) return;
       setLatest(event);
+      attackBus.dispatchEvent(new CustomEvent(ATTACK_BUS_EVENT, { detail: event }));
       setEvents((prev) => {
         const next = [event, ...prev];
         return next.length > bufferRef.current ? next.slice(0, bufferRef.current) : next;

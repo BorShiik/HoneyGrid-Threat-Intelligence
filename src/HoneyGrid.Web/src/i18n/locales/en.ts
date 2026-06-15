@@ -133,6 +133,7 @@ export const en: Resources = {
     filtered: 'filtered',
     cpu: 'CPU',
     ram: 'RAM',
+    connections: 'Connections',
   },
   ai: {
     title: 'AI Integrations (MCP)',
@@ -141,6 +142,9 @@ export const en: Resources = {
     disconnected: 'Disconnected',
     auditLog: 'AI Audit Log',
     endpoint: 'Endpoint URL',
+    requests: 'Requests',
+    configuration: 'Configuration',
+    ping: 'Ping',
   },
   ioc: {
     title: 'IoC Indicators (STIX)',
@@ -164,5 +168,13 @@ export const en: Resources = {
     typeActor: 'Threat Actor',
     typeRel: 'Relationship',
     typeId: 'Identity',
+  },
+  feedCols: {
+    time: 'Time',
+    protocol: 'Protocol',
+    source: 'Source',
+    country: 'Country',
+    type: 'Type',
+    payload: 'Payload',
   },
 };

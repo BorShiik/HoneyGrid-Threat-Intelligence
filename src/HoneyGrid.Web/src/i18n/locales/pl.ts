@@ -131,6 +131,7 @@ export const pl = {
     filtered: 'odfiltrowano',
     cpu: 'CPU',
     ram: 'RAM',
+    connections: 'Połączeń',
   },
   ai: {
     title: 'Integracje AI (MCP)',
@@ -139,6 +140,9 @@ export const pl = {
     disconnected: 'Rozłączono',
     auditLog: 'Dziennik audytu AI',
     endpoint: 'Endpoint URL',
+    requests: 'Zapytań',
+    configuration: 'Konfiguracja',
+    ping: 'Ping',
   },
   ioc: {
     title: 'Wskaźniki IoC (STIX)',
@@ -162,6 +166,14 @@ export const pl = {
     typeActor: 'Aktor zagrożeń',
     typeRel: 'Relacja',
     typeId: 'Tożsamość',
+  },
+  feedCols: {
+    time: 'Czas',
+    protocol: 'Protokół',
+    source: 'Źródło',
+    country: 'Kraj',
+    type: 'Typ',
+    payload: 'Payload',
   },
 };
 

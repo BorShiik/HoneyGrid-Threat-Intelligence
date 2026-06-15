@@ -133,6 +133,7 @@ export const ru: Resources = {
     filtered: 'отфильтровано',
     cpu: 'CPU',
     ram: 'RAM',
+    connections: 'Соединений',
   },
   ai: {
     title: 'Интеграции ИИ (MCP)',
@@ -141,6 +142,9 @@ export const ru: Resources = {
     disconnected: 'Отключено',
     auditLog: 'Журнал аудита ИИ',
     endpoint: 'Endpoint URL',
+    requests: 'Запросов',
+    configuration: 'Конфигурация',
+    ping: 'Пинг',
   },
   ioc: {
     title: 'Индикаторы компрометации (STIX)',
@@ -164,5 +168,13 @@ export const ru: Resources = {
     typeActor: 'Актор угроз',
     typeRel: 'Связь',
     typeId: 'Идентичность',
+  },
+  feedCols: {
+    time: 'Время',
+    protocol: 'Протокол',
+    source: 'Источник',
+    country: 'Страна',
+    type: 'Тип',
+    payload: 'Payload',
   },
 };

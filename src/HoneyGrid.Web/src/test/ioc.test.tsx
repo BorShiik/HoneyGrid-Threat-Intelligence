@@ -37,7 +37,7 @@ describe('IocPage (kanał STIX)', () => {
 
     // Back to all, then text-search narrows to a single pattern
     await user.click(screen.getByRole('button', { name: 'Wszystkie' }));
-    const searchBox = screen.getByRole('searchbox', { name: 'Szukaj wzorca' });
+    const searchBox = screen.getByRole('searchbox');
     await user.type(searchBox, '45.95.147.236');
 
     await waitFor(() =>

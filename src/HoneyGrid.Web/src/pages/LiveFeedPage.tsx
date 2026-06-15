@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, ChevronUp, Filter, Pause, Play, Radio, ShieldAlert, Terminal, Ban, Download } from 'lucide-react';
+import { ChevronDown, ChevronUp, Pause, Play, Radio, ShieldAlert, Terminal, Ban, Download } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useLiveAttacks } from '@/lib/liveAttacks';
-import { EVENT_TYPE_LABELS, SENSOR_LABELS, SEVERITY_BG, eventDetails, eventSeverity } from '@/lib/format';
+import { SENSOR_LABELS, SEVERITY_BG, eventDetails, eventSeverity, eventTypeKey } from '@/lib/format';
 import type { HoneypotEvent, SensorType, Severity } from '@/types/api';
 
 const SENSOR_FILTERS: readonly (SensorType | 'all')[] = ['all', 'ssh', 'web', 'rdp'];
@@ -148,7 +148,7 @@ function FeedRow({ event }: { event: HoneypotEvent }) {
         <span className="w-36 shrink-0 font-mono text-xs text-zinc-200">{event.attackerIp}</span>
         <span className="hidden lg:inline w-32 shrink-0 text-xs text-zinc-500">{event.geo?.countryName ?? '—'}</span>
         <span className="w-36 shrink-0 text-xs text-zinc-400">
-          {t(`eventType.${event.eventType.replace('.', '') === 'loginfailed' ? 'loginFailed' : event.eventType.replace('.', '') === 'loginsuccess' ? 'loginSuccess' : event.eventType.replace('.', '') === 'httprequest' ? 'httpRequest' : event.eventType}` as any, EVENT_TYPE_LABELS[event.eventType])}
+          {t(`eventType.${eventTypeKey(event.eventType)}`)}
         </span>
         <span className="flex-1 truncate font-mono text-[11px] text-zinc-600">{eventDetails(event)}</span>
         <span className="shrink-0 text-zinc-600">
@@ -260,15 +260,17 @@ export function LiveFeedPage() {
 
       {/* Event List */}
       <div className="rounded-xl glass-strong overflow-hidden">
+        <div className="overflow-x-auto">
+        <div className="min-w-[680px]">
         {/* Header row */}
         <div className="flex items-center gap-3 px-5 py-2 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider border-b border-white/[0.04] bg-zinc-900/30">
           <span className="w-2" />
-          <span className="w-20">Время</span>
-          <span className="w-11">Прот.</span>
-          <span className="w-36">Источник</span>
-          <span className="hidden lg:inline w-32">Страна</span>
-          <span className="w-36">Тип</span>
-          <span className="flex-1">Payload</span>
+          <span className="w-20">{t('feedCols.time')}</span>
+          <span className="w-11">{t('feedCols.protocol')}</span>
+          <span className="w-36">{t('feedCols.source')}</span>
+          <span className="hidden lg:inline w-32">{t('feedCols.country')}</span>
+          <span className="w-36">{t('feedCols.type')}</span>
+          <span className="flex-1">{t('feedCols.payload')}</span>
           <span className="w-4" />
         </div>
 
@@ -280,6 +282,8 @@ export function LiveFeedPage() {
           ) : (
             visible.map((event) => <FeedRow key={event.id} event={event} />)
           )}
+        </div>
+        </div>
         </div>
       </div>
     </motion.section>

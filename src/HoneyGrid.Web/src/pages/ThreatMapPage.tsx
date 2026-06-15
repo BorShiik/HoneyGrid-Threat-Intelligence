@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Globe2, Maximize2, Minimize2, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useLiveAttacks } from '@/lib/liveAttacks';
 import { useStatsGeo } from '@/api/queries';
-import { formatInt } from '@/lib/format';
 import type { HoneypotEvent } from '@/types/api';
 
 /* ── Constants ── */
@@ -282,7 +281,7 @@ export function ThreatMapPage() {
 
         {/* ── Glass Overlay Panels ── */}
         {/* Left: Controls + Stats */}
-        <div className="absolute top-4 left-4 z-10 pointer-events-auto w-56 space-y-3">
+        <div className="absolute top-4 left-4 z-10 pointer-events-auto w-44 space-y-3 sm:w-56">
           <div className="glass rounded-xl p-3.5 space-y-3">
             <div className="flex items-center gap-2">
               <Zap className="h-3.5 w-3.5 text-amber-500" />
@@ -318,8 +317,8 @@ export function ThreatMapPage() {
           </div>
         </div>
 
-        {/* Right: Active sources */}
-        <div className="absolute top-4 right-4 z-10 pointer-events-auto w-52">
+        {/* Right: Active sources (hidden on the narrowest screens to avoid overlap) */}
+        <div className="absolute top-4 right-4 z-10 pointer-events-auto hidden w-52 sm:block">
           <div className="glass rounded-xl p-3.5">
             <ActiveSourcesPanel events={events} />
           </div>
@@ -336,7 +335,7 @@ export function ThreatMapPage() {
               transition={{ duration: 0.3 }}
               className="absolute bottom-4 left-4 right-4 z-10 pointer-events-none"
             >
-              <div className="glass rounded-xl px-4 py-2.5 flex items-center gap-4 max-w-xl">
+              <div className="glass rounded-xl px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 max-w-xl">
                 <span
                   className="h-2 w-2 rounded-full shrink-0"
                   style={{ backgroundColor: threatColor(latest), boxShadow: `0 0 8px ${threatColor(latest)}60` }}

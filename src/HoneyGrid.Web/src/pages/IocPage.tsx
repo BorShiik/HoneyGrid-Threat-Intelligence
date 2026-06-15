@@ -81,7 +81,7 @@ function SummaryStat({ label, value, delay }: { label: string; value: number; de
 }
 
 export function IocPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { data, isPending, isError } = useIocsStix();
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [search, setSearch] = useState('');
@@ -135,6 +135,7 @@ export function IocPage() {
           </p>
         </div>
         <button
+          data-testid="export-stix"
           onClick={() => data && downloadBundle(data)}
           disabled={!data}
           className="flex items-center gap-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none"
@@ -265,7 +266,7 @@ export function IocPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3 align-top font-mono text-xs text-zinc-500">
-                            {new Date(o.created).toLocaleDateString()}
+                            {new Date(o.created).toLocaleDateString(i18n.language)}
                           </td>
                         </motion.tr>
                       );
