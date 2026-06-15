@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { startAttackHub, stopAttackHub } from '@/api/signalr';
+import { startAttackHub } from '@/api/signalr';
 import { useConnectionStore } from '@/stores/connectionStore';
 import type { HoneypotEvent, HoneypotEventType, SensorType } from '@/types/api';
 
@@ -141,15 +141,79 @@ export function synthesizeEvent(): HoneypotEvent {
 export const attackBus = new EventTarget();
 export const ATTACK_BUS_EVENT = 'attack';
 
+// ── App-level stream manager ────────────────────────────────────────────────
+// The SignalR connection is a SINGLETON for the whole app session: started once
+// on first use and kept alive across route changes. Previously each page's
+// useLiveAttacks started the hub on mount and stopped it on unmount, so every
+// navigation tore the connection down — pages without the hook (Analytics, IoC…)
+// were left "offline", and the start/stop race threw and fell back to the
+// simulator ("demo mode" flapping). Now pages only subscribe to attackBus.
+
+const SHARED_BUFFER_MAX = 500;
+let sharedEvents: HoneypotEvent[] = [];
+let streamStarted = false;
+let simTimer: ReturnType<typeof setInterval> | undefined;
+
+/** Adds one event to the shared buffer (dedup by id) and notifies subscribers. */
+function broadcast(event: HoneypotEvent): void {
+  const existing = sharedEvents.findIndex((e) => e.id === event.id);
+  if (existing !== -1) {
+    const merged = sharedEvents.slice();
+    merged[existing] = event;
+    sharedEvents = merged;
+  } else {
+    sharedEvents = [event, ...sharedEvents];
+    if (sharedEvents.length > SHARED_BUFFER_MAX) {
+      sharedEvents = sharedEvents.slice(0, SHARED_BUFFER_MAX);
+    }
+  }
+  attackBus.dispatchEvent(new CustomEvent(ATTACK_BUS_EVENT, { detail: event }));
+}
+
+function startSimulatorOnce(): void {
+  if (simTimer) return;
+  const store = useConnectionStore.getState();
+  store.setSimulated(true);
+  store.setStatus('connected');
+  // Seed a few events so the views aren't empty on first paint.
+  for (let i = 0; i < 12; i += 1) broadcast(synthesizeEvent());
+  simTimer = setInterval(() => {
+    const burst = randInt(1, 3);
+    for (let i = 0; i < burst; i += 1) broadcast(synthesizeEvent());
+  }, 1500);
+}
+
+/** Idempotent: starts the live stream exactly once for the app session. */
+function ensureStreamStarted(): void {
+  if (streamStarted) return;
+  streamStarted = true;
+
+  if (import.meta.env.PROD) {
+    // Connect to the real SignalR hub; fall back to the simulator only if the
+    // hub is genuinely unreachable, so the dashboard still shows activity.
+    startAttackHub(broadcast)
+      .then(() => {
+        if (useConnectionStore.getState().status !== 'connected') {
+          startSimulatorOnce();
+        } else {
+          useConnectionStore.getState().setSimulated(false);
+        }
+      })
+      .catch(() => startSimulatorOnce());
+  } else {
+    // Dev / tests run on MSW mocks, which cannot intercept WebSockets — drive
+    // the stream deterministically with the client-side simulator.
+    startSimulatorOnce();
+  }
+}
+
 export function useLiveAttacks(options?: UseLiveAttacksOptions): UseLiveAttacksResult {
   const bufferSize = options?.bufferSize ?? 200;
   const enabled = options?.enabled ?? true;
-  const [events, setEvents] = useState<HoneypotEvent[]>([]);
-  const [latest, setLatest] = useState<HoneypotEvent | null>(null);
-  const [simulated, setSimulated] = useState(false);
-  const setStatus = useConnectionStore((s) => s.setStatus);
+  const [events, setEvents] = useState<HoneypotEvent[]>(() => sharedEvents.slice(0, bufferSize));
+  const [latest, setLatest] = useState<HoneypotEvent | null>(() => sharedEvents[0] ?? null);
+  const simulated = useConnectionStore((s) => s.simulated);
 
-  // Keep the buffer cap in a ref so the push closure stays stable.
   const bufferRef = useRef(bufferSize);
   useEffect(() => {
     bufferRef.current = bufferSize;
@@ -157,56 +221,34 @@ export function useLiveAttacks(options?: UseLiveAttacksOptions): UseLiveAttacksR
 
   useEffect(() => {
     if (!enabled) return;
-    let disposed = false;
-    let timer: ReturnType<typeof setInterval> | undefined;
+    // Start the singleton connection on first use (idempotent — it is never
+    // restarted or stopped on navigation, which is what caused the demo/offline
+    // flapping between tabs).
+    ensureStreamStarted();
+    // Seed local state from the shared buffer so a freshly-mounted page shows
+    // recent events immediately instead of waiting for the next one.
+    setEvents(sharedEvents.slice(0, bufferRef.current));
+    setLatest(sharedEvents[0] ?? null);
 
-    const push = (event: HoneypotEvent) => {
-      if (disposed) return;
+    const onAttack = (e: Event) => {
+      const event = (e as CustomEvent<HoneypotEvent>).detail;
       setLatest(event);
-      attackBus.dispatchEvent(new CustomEvent(ATTACK_BUS_EVENT, { detail: event }));
       setEvents((prev) => {
+        // The same event can arrive twice (insert + classification PATCH both
+        // hit the Change Feed) — replace in place instead of duplicating.
+        const existing = prev.findIndex((x) => x.id === event.id);
+        if (existing !== -1) {
+          const merged = prev.slice();
+          merged[existing] = event;
+          return merged;
+        }
         const next = [event, ...prev];
         return next.length > bufferRef.current ? next.slice(0, bufferRef.current) : next;
       });
     };
-
-    const startSimulator = () => {
-      if (disposed) return;
-      setSimulated(true);
-      setStatus('connected');
-      // Seed a few events so the views aren't empty on first paint.
-      for (let i = 0; i < 12; i += 1) push(synthesizeEvent());
-      timer = setInterval(() => {
-        const burst = randInt(1, 3);
-        for (let i = 0; i < burst; i += 1) push(synthesizeEvent());
-      }, 1500);
-    };
-
-    if (import.meta.env.PROD) {
-      // Production: connect to the real SignalR hub; fall back to the simulator
-      // if the hub is unreachable so the dashboard still shows activity.
-      startAttackHub(push)
-        .then(() => {
-          if (disposed) return;
-          // startAttackHub swallows errors and leaves status !== 'connected' on
-          // failure; treat that as "no backend" and switch to the simulator.
-          if (useConnectionStore.getState().status !== 'connected') {
-            startSimulator();
-          }
-        })
-        .catch(() => startSimulator());
-    } else {
-      // Dev / tests run on MSW mocks, which cannot intercept WebSockets — drive
-      // the stream deterministically with the client-side simulator.
-      startSimulator();
-    }
-
-    return () => {
-      disposed = true;
-      if (timer) clearInterval(timer);
-      void stopAttackHub();
-    };
-  }, [enabled, setStatus]);
+    attackBus.addEventListener(ATTACK_BUS_EVENT, onAttack);
+    return () => attackBus.removeEventListener(ATTACK_BUS_EVENT, onAttack);
+  }, [enabled]);
 
   return { events, latest, simulated };
 }

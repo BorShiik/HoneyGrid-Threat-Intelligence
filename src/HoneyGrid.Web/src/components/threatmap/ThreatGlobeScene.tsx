@@ -1,6 +1,5 @@
 import { Canvas } from '@react-three/fiber';
 import { Stars } from '@react-three/drei';
-import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing';
 import { GlobeBase } from './GlobeBase';
 import { CorePulse } from './CorePulse';
 import { AttackArcs } from './AttackArcs';

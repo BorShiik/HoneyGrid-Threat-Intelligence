@@ -1,5 +1,3 @@
-import React from 'react';
-
 interface CountryFlagProps {
   /** ISO 3166-1 alpha-2 country code (e.g., 'US', 'PL', 'GB') */
   code?: string;

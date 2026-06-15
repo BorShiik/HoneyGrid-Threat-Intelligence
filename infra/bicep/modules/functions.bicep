@@ -3,12 +3,16 @@
 //   ClassifyEvents · FanOutToSignalR · BuildAggregates · CorrelateActors ·
 //   DailyBriefing · negotiate (SignalR Serverless).
 //
-// .NET isolated (v4) na Linux Consumption. Bezkluczowo: tożsamość systemowa +
-// role na Cosmos (dane), Storage (AzureWebJobs, keyless), Azure OpenAI i SignalR.
-// Kod wgrywa się osobno: `func azure functionapp publish <name>` (zip deploy).
+// .NET isolated (v4) na FLEX CONSUMPTION (FC1). Bezkluczowo: tożsamość
+// user-assigned + role na Cosmos (dane), Storage (AzureWebJobs + paczka
+// wdrożeniowa, keyless), Azure OpenAI i SignalR.
+// Kod wgrywa się osobno: `az functionapp deploy --src-path func.zip --type zip`
+// (OneDeploy → kontener `app-package` w koncie Storage).
 //
-// UWAGA (.NET 10): runtime '10.0' jest świeży — jeśli region/stos Functions go
-// nie wspiera, zmień linuxFxVersion na 'DOTNET-ISOLATED|9.0' i target net9.0.
+// DLACZEGO FLEX, nie Consumption (Y1): plan Linux Consumption NIE uruchamia
+// workera .NET 10 (host milczy → 503, zero telemetrii). Flex Consumption ma
+// pełne wsparcie .NET 10 isolated i bezkluczowego host storage; Linux
+// Consumption jest wycofywany (30.09.2028).
 // ============================================================================
 
 @allowed(['dev', 'prod'])
@@ -37,10 +41,19 @@ param openAiDeploymentName string
 param signalRName string
 param signalREndpoint string
 
+@description('''Tożsamość user-assigned Function App (z security.bicep). User-assigned,
+bo principalId musi być znany na starcie wdrożenia do nazw przypisań ról (guid()).''')
+param functionsIdentityId string
+param functionsIdentityPrincipalId string
+param functionsIdentityClientId string
+
+@description('''Podsieć integracji VNet (snet-func, delegowana do Microsoft.App/environments).
+Daje hostowi dostęp do Cosmos przez Private Endpoint — bez niej change-feed dostaje 403.''')
+param functionsSubnetId string
+
 var suffix = uniqueString(resourceGroup().id)
 var functionAppName = '${namePrefix}-${environment}-func-${suffix}'
 var planName = '${namePrefix}-${environment}-funcplan'
-var storageSuffix = az.environment().suffixes.storage
 
 // ── Istniejące zasoby (do przypisań ról bezkluczowych) ─────────────────────
 resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
@@ -56,14 +69,21 @@ resource signalR 'Microsoft.SignalRService/signalR@2024-03-01' existing = {
   name: signalRName
 }
 
-// ── Plan Consumption (Linux) ───────────────────────────────────────────────
+// ── Kontener na paczkę wdrożeniową (Flex OneDeploy) ────────────────────────
+// Flex pobiera kod z kontenera blob (nie WEBSITE_RUN_FROM_PACKAGE). Dostęp do
+// niego ma tożsamość funkcji (Storage Blob Data Owner — patrz niżej).
+resource deployContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+  name: '${storageAccountName}/default/app-package'
+}
+
+// ── Plan Flex Consumption (FC1, Linux) ─────────────────────────────────────
 resource plan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: planName
   location: location
   tags: tags
   sku: {
-    name: 'Y1'
-    tier: 'Dynamic'
+    name: 'FC1'
+    tier: 'FlexConsumption'
   }
   kind: 'functionapp'
   properties: {
@@ -71,46 +91,82 @@ resource plan 'Microsoft.Web/serverfarms@2023-12-01' = {
   }
 }
 
-// ── Function App (.NET isolated v4) ────────────────────────────────────────
+// ── Function App (.NET 10 isolated na Flex Consumption) ────────────────────
 resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
   name: functionAppName
   location: location
   tags: tags
   kind: 'functionapp,linux'
   identity: {
-    type: 'SystemAssigned'
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${functionsIdentityId}': {}
+    }
   }
   properties: {
     serverFarmId: plan.id
     httpsOnly: true
+    // Integracja VNet: ruch do Cosmos idzie przez Private Endpoint w snet-data
+    // (vnetRouteAllEnabled kieruje cały outbound przez VNet → strefa Private DNS
+    // rozwiązuje FQDN Cosmos na prywatny IP). SignalR/OpenAI/Storage publiczne
+    // nadal wychodzą do Internetu (brak NSG na snet-func).
+    virtualNetworkSubnetId: functionsSubnetId
+    vnetRouteAllEnabled: true
+    // Flex: stos i skalowanie idą w functionAppConfig (NIE linuxFxVersion ani
+    // FUNCTIONS_EXTENSION_VERSION/FUNCTIONS_WORKER_RUNTIME w appSettings).
+    functionAppConfig: {
+      deployment: {
+        storage: {
+          type: 'blobContainer'
+          value: '${storage.properties.primaryEndpoints.blob}app-package'
+          authentication: {
+            type: 'UserAssignedIdentity'
+            userAssignedIdentityResourceId: functionsIdentityId
+          }
+        }
+      }
+      runtime: {
+        name: 'dotnet-isolated'
+        version: '10.0'
+      }
+      scaleAndConcurrency: {
+        instanceMemoryMB: 2048
+        maximumInstanceCount: 40
+      }
+    }
     siteConfig: {
-      linuxFxVersion: 'DOTNET-ISOLATED|10.0'
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       cors: {
         allowedOrigins: ['*']
       }
       appSettings: [
-        { name: 'FUNCTIONS_EXTENSION_VERSION', value: '~4' }
-        { name: 'FUNCTIONS_WORKER_RUNTIME', value: 'dotnet-isolated' }
-        // AzureWebJobsStorage bezkluczowo (identity-based) — wymaga ról Storage niżej.
-        { name: 'AzureWebJobsStorage__blobServiceUri', value: 'https://${storageAccountName}.blob.${storageSuffix}' }
-        { name: 'AzureWebJobsStorage__queueServiceUri', value: 'https://${storageAccountName}.queue.${storageSuffix}' }
-        { name: 'AzureWebJobsStorage__tableServiceUri', value: 'https://${storageAccountName}.table.${storageSuffix}' }
+        // Bezkluczowy host storage (AzureWebJobsStorage) na tożsamości
+        // user-assigned: accountName + credential=managedidentity + clientId.
+        // Wymaga ról Storage (Blob Owner + Queue + Table) — patrz niżej.
+        { name: 'AZURE_CLIENT_ID', value: functionsIdentityClientId }
+        { name: 'AzureWebJobsStorage__accountName', value: storageAccountName }
+        { name: 'AzureWebJobsStorage__credential', value: 'managedidentity' }
+        { name: 'AzureWebJobsStorage__clientId', value: functionsIdentityClientId }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsightsConnectionString }
         // Kontrakt z kodem funkcji (HoneyGrid.Functions):
         { name: 'CosmosDatabase', value: cosmosDatabaseName }
         { name: 'CosmosConnection__accountEndpoint', value: cosmosEndpoint }
+        { name: 'CosmosConnection__credential', value: 'managedidentity' }
+        { name: 'CosmosConnection__clientId', value: functionsIdentityClientId }
         { name: 'OpenAIEndpoint', value: openAiEndpoint }
         { name: 'OpenAIDeployment', value: openAiDeploymentName }
         { name: 'AzureSignalRConnectionString__serviceUri', value: signalREndpoint }
+        { name: 'AzureSignalRConnectionString__credential', value: 'managedidentity' }
+        { name: 'AzureSignalRConnectionString__clientId', value: functionsIdentityClientId }
       ]
     }
   }
 }
 
 // ── Role bezkluczowe dla tożsamości funkcji ────────────────────────────────
-var funcPrincipalId = functionApp.identity.principalId
+// principalId tożsamości user-assigned (znany na starcie — patrz BCP120).
+var funcPrincipalId = functionsIdentityPrincipalId
 
 // Cosmos — rola PŁASZCZYZNY DANYCH (Built-in Data Contributor: 0000…0002).
 resource cosmosDataContributor 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = {
@@ -142,6 +198,17 @@ resource storageQueueContributor 'Microsoft.Authorization/roleAssignments@2022-0
     principalType: 'ServicePrincipal'
   }
 }
+// Storage Table Data Contributor — host z bezkluczowym AzureWebJobsStorage
+// używa też Table (leasy/stan). Bez tej roli host nie wstaje.
+resource storageTableContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storage.id, funcPrincipalId, 'table-data-contributor')
+  scope: storage
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')
+    principalId: funcPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
 
 // Azure OpenAI — Cognitive Services OpenAI User.
 resource openAiUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -159,7 +226,7 @@ resource signalROwner 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(signalR.id, funcPrincipalId, 'signalr-owner')
   scope: signalR
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7e4f1700-ea5a-4f59-8f37-079cfe29dca6')
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7e4f1700-ea5a-4f59-8f37-079cfe29dce3')
     principalId: funcPrincipalId
     principalType: 'ServicePrincipal'
   }

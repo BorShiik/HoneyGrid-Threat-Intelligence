@@ -34,6 +34,7 @@ var sensorIdentityName = '${namePrefix}-${environment}-id-sensor'
 var playbookIdentityName = '${namePrefix}-${environment}-id-playbook'
 var workerIdentityName = '${namePrefix}-${environment}-id-worker'
 var apiIdentityName = '${namePrefix}-${environment}-id-api'
+var functionsIdentityName = '${namePrefix}-${environment}-id-functions'
 // Key Vault: nazwa globalna, max 24 znaki.
 var keyVaultName = '${namePrefix}-${environment}-kv-${take(suffix, 8)}'
 
@@ -85,6 +86,16 @@ resource apiIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-3
   tags: tags
 }
 
+// Tożsamość Function App (Track B). User-assigned (NIE system-assigned), żeby
+// principalId był znany na starcie wdrożenia i dało się go użyć w nazwach
+// przypisań ról (guid()) — system-assigned principalId nie jest dostępny na
+// starcie (błąd BCP120).
+resource functionsIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
+  name: functionsIdentityName
+  location: location
+  tags: tags
+}
+
 // ---------------------------------------------------------------------------
 // Key Vault — tryb RBAC, zero access policies (architektura bezkluczowa)
 // ---------------------------------------------------------------------------
@@ -129,6 +140,10 @@ output workerIdentityClientId string = workerIdentity.properties.clientId
 output apiIdentityId string = apiIdentity.id
 output apiIdentityPrincipalId string = apiIdentity.properties.principalId
 output apiIdentityClientId string = apiIdentity.properties.clientId
+
+output functionsIdentityId string = functionsIdentity.id
+output functionsIdentityPrincipalId string = functionsIdentity.properties.principalId
+output functionsIdentityClientId string = functionsIdentity.properties.clientId
 
 output keyVaultId string = keyVault.id
 output keyVaultName string = keyVault.name

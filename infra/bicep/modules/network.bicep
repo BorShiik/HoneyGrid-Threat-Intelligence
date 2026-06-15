@@ -29,6 +29,9 @@ param logicSubnetPrefix string = '10.20.1.0/24'
 @description('Podsieć data — Private Endpoints.')
 param dataSubnetPrefix string = '10.20.2.0/24'
 
+@description('Podsieć func — integracja VNet dla Flex Function App (dostęp do Cosmos przez Private Endpoint).')
+param funcSubnetPrefix string = '10.20.3.0/24'
+
 // ---------------------------------------------------------------------------
 // Zmienne nazewnicze
 // ---------------------------------------------------------------------------
@@ -570,6 +573,27 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
           privateLinkServiceNetworkPolicies: 'Enabled'
         }
       }
+      {
+        // Integracja VNet dla Flex Function App. Flex Consumption wymaga
+        // dedykowanej podsieci delegowanej do Microsoft.App/environments.
+        // Dzięki niej host funkcji dociera do Cosmos przez Private Endpoint
+        // (snet-data) i strefę Private DNS — change-feed (FanOutToSignalR,
+        // ClassifyEvents, CorrelateActors) przestaje dostawać 403 z firewalla
+        // Cosmos. Bez NSG: domyślny outbound (VNet do PE + Internet do
+        // SignalR/OpenAI/Storage publicznie) wystarcza.
+        name: 'snet-func'
+        properties: {
+          addressPrefix: funcSubnetPrefix
+          delegations: [
+            {
+              name: 'delegation-flexfunc'
+              properties: {
+                serviceName: 'Microsoft.App/environments'
+              }
+            }
+          ]
+        }
+      }
     ]
   }
 }
@@ -588,6 +612,7 @@ output vnetName string = vnet.name
 output dmzSubnetId string = vnet.properties.subnets[0].id
 output logicSubnetId string = vnet.properties.subnets[1].id
 output dataSubnetId string = vnet.properties.subnets[2].id
+output funcSubnetId string = vnet.properties.subnets[3].id
 output dmzNsgId string = dmzNsg.id
 output dmzNsgName string = dmzNsg.name
 output logicNsgId string = logicNsg.id

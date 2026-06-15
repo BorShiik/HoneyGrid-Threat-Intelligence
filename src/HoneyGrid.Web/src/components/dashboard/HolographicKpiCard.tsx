@@ -93,7 +93,7 @@ export function HolographicKpiCard({
         {/* Glowing sparkline */}
         {sparkData && (
           <div className="-mx-4 -mb-4 h-12 opacity-80 transition-opacity group-hover:opacity-100">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
               <AreaChart data={sparkData} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
                 <defs>
                   <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">

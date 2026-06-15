@@ -228,7 +228,7 @@ function GlobalStatsDashboard({ actors }: { actors: ThreatActor[] }) {
                   labelStyle={{ display: 'none' }}
                 />
                 <Bar dataKey="count" fill="#fbbf24" radius={[0, 4, 4, 0]}>
-                   {stats.topCountries.map((entry, index) => (
+                   {stats.topCountries.map((_entry, index) => (
                     <Cell key={`cell-${index}`} fill={`rgba(251, 191, 36, ${1 - index * 0.15})`} />
                   ))}
                 </Bar>

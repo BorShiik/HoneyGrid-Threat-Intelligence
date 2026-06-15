@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Network, Shield, Activity, ArrowRightLeft, AlertTriangle, WifiOff, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { AreaChart, Area, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
+import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts';
 import { cn } from '@/lib/utils';
 import { formatInt } from '@/lib/format';
 

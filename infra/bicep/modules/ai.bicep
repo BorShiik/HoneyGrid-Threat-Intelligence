@@ -47,11 +47,13 @@ resource openAiAccount 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
   }
 }
 
-// Deployment gpt-5.4-nano — model klasyfikacji sesji (Track B).
-// GlobalStandard rozlicza per token (brak stałej opłaty) — pasuje do budżetu.
+// Deployment gpt-4o-mini — model klasyfikacji sesji (Track B).
+// (POPRAWKA: w repo była nieistniejąca nazwa 'gpt-5.4-nano' → preflight padał
+// "DeploymentModelNotSupported". gpt-4o-mini to realny, tani model dostępny
+// m.in. w swedencentral.) GlobalStandard rozlicza per token (brak stałej opłaty).
 resource gptDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = {
   parent: openAiAccount
-  name: 'gpt-5.4-nano'
+  name: 'gpt-4o-mini'
   sku: {
     name: 'GlobalStandard'
     capacity: 8 // 8k TPM — wystarczy na klasyfikację sesji z kolejki
@@ -59,10 +61,8 @@ resource gptDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10
   properties: {
     model: {
       format: 'OpenAI'
-      name: 'gpt-5.4-nano'
-      // UWAGA: ustaw wersję modelu dostępną w Twoim regionie/koncie
-      // (portal → Azure AI Foundry → Model deployments → wersje gpt-5.4-nano).
-      version: '2025-08-01'
+      name: 'gpt-4o-mini'
+      version: '2024-07-18'
     }
   }
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Brain, CheckCircle2, ChevronDown, Settings, Terminal, WifiOff, Activity, AlertCircle } from 'lucide-react';
+import { Brain, CheckCircle2, Settings, Terminal, WifiOff, Activity, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 

@@ -180,7 +180,12 @@ module app 'modules/app.bicep' = {
     apiIdentityClientId: security.outputs.apiIdentityClientId
     apiIdentityPrincipalId: security.outputs.apiIdentityPrincipalId
     // Static Web App tylko gdy region Track B na to pozwala (patrz deployTrackB).
-    deployStaticWebApp: deployTrackB
+    // SWA dostępny tylko w westus2/eastus2/westeurope/eastasia/centralus — żaden
+    // nie jest dozwolony przez politykę regionów tej subskrypcji. Dlatego SWA NIE
+    // wdrażamy nawet przy deployTrackB=true; frontend uruchamiamy lokalnie
+    // (npm preview z VITE_API_BASE = URL API). Reszta Track B (OpenAI/SignalR/
+    // Functions) wdraża się normalnie.
+    deployStaticWebApp: false
   }
 }
 
@@ -254,6 +259,12 @@ module functions 'modules/functions.bicep' = if (deployTrackB) {
     openAiDeploymentName: ai!.outputs.gptDeploymentName
     signalRName: app.outputs.signalRName
     signalREndpoint: app.outputs.signalREndpoint
+    // Tożsamość user-assigned Function App (fix BCP120 — patrz security.bicep).
+    functionsIdentityId: security.outputs.functionsIdentityId
+    functionsIdentityPrincipalId: security.outputs.functionsIdentityPrincipalId
+    functionsIdentityClientId: security.outputs.functionsIdentityClientId
+    // Integracja VNet (snet-func) — dostęp do Cosmos przez Private Endpoint.
+    functionsSubnetId: network.outputs.funcSubnetId
   }
 }
 

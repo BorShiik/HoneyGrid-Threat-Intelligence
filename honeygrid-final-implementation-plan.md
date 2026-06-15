@@ -337,15 +337,20 @@ C#-классы, строго совпадающие со словарём STIX.
 ### 6.9 API + SignalR + realtime
 
 ```
+HoneyGrid.Api (REST, только чтение, бесключево):
 GET  /api/feed?since=&take=      историческая/живая лента (пагинация)
 GET  /api/stats/{overview|geo|credentials}
 GET  /api/actors  ·  /api/actors/{id}
 GET  /api/sessions/{id}/replay   TTY-данные для xterm
 GET  /api/iocs/stix              STIX bundle
-hub  AttackHub                   realtime push
+
+HoneyGrid.Functions (realtime, Azure SignalR Service в режиме Serverless):
+GET/POST /api/hubs/attacks/negotiate   negotiate → URL+токен SignalR Service
+hub  attacks, событие "attack"          push событий на дашборд
 ```
 
-- **Cosmos Change Feed → Function → `hub.Clients.All.SendAsync("attack", evt)`** — каждое новое событие мгновенно на дашборде.
+- **Realtime сделан НЕ self-hosted-хабом в API, а через Azure SignalR Service (Serverless).** `HoneyGrid.Api` realtime не хостит. Поток: **Cosmos Change Feed → `FanOutToSignalR` (CosmosDBTrigger + `[SignalROutput]`) → событие `attack` в хаб `attacks`**; клиент подключается напрямую к SignalR Service, получив connection-info от функции `negotiate`. Подключение к SignalR Service бесключевое (`AzureSignalRConnectionString__serviceUri` + роль *SignalR Service Owner* на identity функций).
+- Один и тот же Change Feed читают два процессора под разными префиксами лизов: `classify` (`ClassifyEvents`) и `fanout` (`FanOutToSignalR`). PATCH классификации тоже триггерит Change Feed → событие может прийти дважды (на вставку и после классификации); клиент дедуплицирует по `id`.
 - Серверный throttle (окно ~250мс) при пиках, output caching на агрегатах, Brotli.
 
 ---
@@ -393,7 +398,7 @@ hub  AttackHub                   realtime push
 
 - Cosmos data model + Change Feed processor
 - **AI Classification** (Azure OpenAI: kill-chain, sophistication, intent) через Service Bus буфер
-- ASP.NET Core API + SignalR Hub + Change Feed → SignalR realtime
+- ASP.NET Core API (REST, только чтение) + realtime через **Azure SignalR Service (Serverless)**: функции `negotiate` + `FanOutToSignalR` (Change Feed → событие `attack`); API хаб не хостит
 - Daily AI briefing (Logic Apps + Communication Services)
 - Observability (App Insights, OpenTelemetry через весь конвейер)
 

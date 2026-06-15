@@ -15,6 +15,7 @@ export const pl = {
     online: 'System online',
     connecting: 'Łączenie…',
     offline: 'Brak połączenia',
+    simulated: 'Tryb demo (symulacja)',
   },
   common: {
     all: 'Wszystkie',

@@ -133,27 +133,35 @@ function NavList({
 function ConnectionPulse() {
   const { t } = useTranslation();
   const status = useConnectionStore((s) => s.status);
+  const simulated = useConnectionStore((s) => s.simulated);
+  // The simulator reports status 'connected' so views stay populated, but the
+  // data is synthetic — show an amber "demo" state instead of a green "online"
+  // dot so the header never implies the stream is real.
+  const connectedReal = status === 'connected' && !simulated;
   return (
     <div className="flex items-center gap-2">
       <span className="relative flex h-2.5 w-2.5">
-        {status === 'connected' && (
+        {connectedReal && (
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
         )}
         <span
           className={cn(
             'relative inline-flex h-2.5 w-2.5 rounded-full',
-            status === 'connected' && 'bg-emerald-500',
-            status === 'disconnected' && 'bg-red-500',
-            status === 'connecting' && 'bg-amber-500 animate-pulse',
+            connectedReal && 'bg-emerald-500',
+            simulated && 'bg-amber-500',
+            status === 'disconnected' && !simulated && 'bg-red-500',
+            status === 'connecting' && !simulated && 'bg-amber-500 animate-pulse',
           )}
         />
       </span>
       <span className="hidden text-xs text-zinc-400 md:inline" data-testid="connection-status">
-        {status === 'connected'
-          ? t('topbar.online')
-          : status === 'connecting'
-            ? t('topbar.connecting')
-            : t('topbar.offline')}
+        {simulated
+          ? t('topbar.simulated')
+          : status === 'connected'
+            ? t('topbar.online')
+            : status === 'connecting'
+              ? t('topbar.connecting')
+              : t('topbar.offline')}
       </span>
     </div>
   );

@@ -11,7 +11,7 @@ param namePrefix = 'hg'
 // Track B (OpenAI, Maps, Static Web App) wyłączony — te usługi nie są dostępne
 // w regionach narzucanych studenckim subskrypcjom. Track A wdraża się w całości.
 // Track B włączy = true w swoim wspieranym regionie (np. dla OpenAI: swedencentral).
-param deployTrackB = false
+param deployTrackB = true
 
 // Tydzień 6 (SOAR): objectId SP "Azure Security Insights" w tym tenancie —
 // pobrany przez `az ad sp list --filter "appId eq '98785600-1bb7-4fb9-b9fa-19afe2c8a360'"`.

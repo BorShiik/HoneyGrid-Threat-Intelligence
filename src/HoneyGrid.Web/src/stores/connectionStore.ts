@@ -6,6 +6,13 @@ interface ConnectionState {
   /** SignalR connection state for the /hubs/attacks hub. */
   status: ConnectionStatus;
   setStatus: (status: ConnectionStatus) => void;
+  /**
+   * True when the live stream is driven by the client-side simulator rather
+   * than a real SignalR backend (the synthetic data fallback). Surfaced in the
+   * header so an "online" dot doesn't imply the data is real.
+   */
+  simulated: boolean;
+  setSimulated: (simulated: boolean) => void;
 }
 
 /**
@@ -16,4 +23,6 @@ interface ConnectionState {
 export const useConnectionStore = create<ConnectionState>((set) => ({
   status: 'disconnected',
   setStatus: (status) => set({ status }),
+  simulated: false,
+  setSimulated: (simulated) => set({ simulated }),
 }));

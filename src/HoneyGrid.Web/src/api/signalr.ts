@@ -18,18 +18,25 @@ export type AttackHandler = (event: HoneypotEvent) => void;
 let connection: HubConnection | null = null;
 
 /**
- * Creates (lazily) the singleton connection to /hubs/attacks and wires the
+ * Creates (lazily) the singleton connection to the attacks hub and wires the
  * connection lifecycle into the Zustand connection store, so the header
  * status dot ("Połączono / Rozłączono") reflects reality.
  *
- * Week 0: this is scaffolding only — nothing calls startAttackHub() yet,
- * because there is no real backend and MSW does not intercept WebSockets.
+ * In production the client negotiates against the Functions Serverless endpoint
+ * (VITE_SIGNALR_URL → /api/hubs/attacks) and receives events broadcast by
+ * FanOutToSignalR. In dev/MSW startAttackHub() is driven by the simulator in
+ * lib/liveAttacks.ts, since MSW does not intercept WebSockets.
  */
 export function getAttackHubConnection(): HubConnection {
   if (connection) return connection;
 
   connection = new HubConnectionBuilder()
-    .withUrl(ATTACKS_HUB_URL)
+    // withCredentials:false is REQUIRED — the Functions/SignalR endpoint returns
+    // `Access-Control-Allow-Origin: *`, and browsers reject `*` together with
+    // credentials. The SignalR client defaults withCredentials to true, which
+    // makes the negotiate preflight fail and silently drops us to the simulator.
+    // Serverless negotiate is anonymous (token in the body), so no cookies needed.
+    .withUrl(ATTACKS_HUB_URL, { withCredentials: false })
     .withAutomaticReconnect()
     .configureLogging(LogLevel.Warning)
     .build();

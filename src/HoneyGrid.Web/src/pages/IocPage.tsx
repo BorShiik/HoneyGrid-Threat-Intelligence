@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Check, Copy, Download, Search, ShieldAlert, FileText, Share2, UserX, Target, Zap, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIocsStix } from '@/api/queries';
@@ -289,7 +289,7 @@ export function IocPage() {
                       {t('ioc.empty', 'Нет объектов, соответствующих фильтрам')}
                     </div>
                   ) : (
-                    filtered.map((o, i) => {
+                    filtered.map((o) => {
                       const Icon = typeIcon(o.type);
                       return (
                         <div

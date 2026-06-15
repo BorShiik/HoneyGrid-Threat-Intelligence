@@ -17,6 +17,7 @@ export const ru: Resources = {
     online: 'Система онлайн',
     connecting: 'Подключение…',
     offline: 'Нет связи',
+    simulated: 'Демо-режим (симуляция)',
   },
   common: {
     all: 'Все',

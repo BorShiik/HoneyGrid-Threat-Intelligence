@@ -62,7 +62,7 @@ function EventDetail({ event }: { event: HoneypotEvent }) {
               <><span className="text-zinc-500">{'> '}</span><span className="text-blue-400">AUTH</span> {event.credentials.username}:<span className="text-zinc-500">{event.credentials.password}</span> → <span className={event.eventType === 'login.success' ? 'text-emerald-400 bg-emerald-500/10 px-1 rounded' : 'text-rose-400 bg-rose-500/10 px-1 rounded'}>{event.eventType === 'login.success' ? 'SUCCESS' : 'FAILED'}</span>{'\n'}</>
             )}
             {event.command && (
-              <><span className="text-emerald-500">$</span> <span className="text-zinc-200">{event.command.split(' ').map((word, i) => ['curl', 'wget', 'sh', 'bash', 'crontab'].includes(word) ? `<span class="text-rose-400 font-bold">${word}</span>` : word).join(' ').replace(/<span class="text-rose-400 font-bold">([^<]+)<\/span>/g, '<span class="text-rose-400 font-bold">$1</span>')}</span>{'\n'}</>
+              <><span className="text-emerald-500">$</span> <span className="text-zinc-200">{event.command.split(' ').map((word) => ['curl', 'wget', 'sh', 'bash', 'crontab'].includes(word) ? `<span class="text-rose-400 font-bold">${word}</span>` : word).join(' ').replace(/<span class="text-rose-400 font-bold">([^<]+)<\/span>/g, '<span class="text-rose-400 font-bold">$1</span>')}</span>{'\n'}</>
             )}
             {event.http && (
               <><span className="text-blue-400 font-bold">{event.http.method}</span> <span className="text-zinc-300">{event.http.path}</span>{'\n'}<span className="text-zinc-600">User-Agent: {event.http.userAgent}</span>{'\n'}</>

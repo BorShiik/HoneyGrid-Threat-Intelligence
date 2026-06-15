@@ -17,6 +17,7 @@ export const en: Resources = {
     online: 'System online',
     connecting: 'Connecting…',
     offline: 'Offline',
+    simulated: 'Demo mode (simulated)',
   },
   common: {
     all: 'All',

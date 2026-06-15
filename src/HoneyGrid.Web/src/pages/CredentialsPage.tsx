@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { motion, AnimatePresence } from 'framer-motion';
-import { KeyRound, User, Lock, Hash, ShieldAlert, Eye, EyeOff, Copy, Check, TerminalSquare } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { KeyRound, User, Lock, Hash, ShieldAlert, Copy, Check, TerminalSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatInt } from '@/lib/format';
 import { squarify } from '@/lib/treemap';
