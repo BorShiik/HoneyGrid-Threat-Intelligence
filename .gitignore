@@ -6,6 +6,8 @@
 bin/
 obj/
 out/
+publish/
+src/HoneyGrid.Functions/func.zip
 *.user
 *.suo
 .vs/
