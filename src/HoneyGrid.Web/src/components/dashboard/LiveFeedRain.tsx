@@ -49,13 +49,12 @@ const FeedRow = React.forwardRef<HTMLDivElement, { event: HoneypotEvent }>(({ ev
   return (
     <motion.div
       ref={ref}
-      layout
-      initial={{ opacity: 0, y: -16, filter: 'blur(4px)' }}
-      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-      exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, height: 0, marginBottom: 0, overflow: 'hidden' }}
+      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
       className={cn(
-        'glitch-in grid grid-cols-[64px_52px_1fr] items-center gap-x-3 gap-y-1 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 backdrop-blur-sm sm:grid-cols-[72px_56px_130px_1fr_1.4fr]',
+        'grid grid-cols-[64px_52px_1fr] items-center gap-x-3 gap-y-1 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 sm:grid-cols-[72px_56px_130px_1fr_1.4fr]',
         critical && 'critical-pulse border-rose-500/30',
       )}
     >
