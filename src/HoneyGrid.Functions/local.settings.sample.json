@@ -11,7 +11,7 @@
 
     "__comment_openai": "Opcjonalne. Bez OpenAIEndpoint klasyfikator AI jest wyłączony i działa sam stub. Keyless: rola 'Cognitive Services OpenAI User'.",
     "OpenAIEndpoint": "https://<twoje-konto>.openai.azure.com/",
-    "OpenAIDeployment": "gpt-5.4-nano",
+    "OpenAIDeployment": "gpt-4o-mini",
 
     "__comment_signalr": "SignalR Service (tryb Serverless) — wiązania FanOutToSignalR i negotiate. Keyless: rola 'SignalR Service Owner'. Domyślna nazwa połączenia: AzureSignalRConnectionString.",
     "AzureSignalRConnectionString__serviceUri": "https://<twoj-signalr>.service.signalr.net",

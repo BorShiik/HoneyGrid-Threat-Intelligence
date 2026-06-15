@@ -32,7 +32,7 @@ public sealed class OpenAiClassifier
         _logger = logger;
 
         var endpoint = config["OpenAIEndpoint"];
-        var deployment = config["OpenAIDeployment"] ?? "gpt-5.4-nano";
+        var deployment = config["OpenAIDeployment"] ?? "gpt-4o-mini";
 
         if (string.IsNullOrWhiteSpace(endpoint))
         {
