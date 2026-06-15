@@ -42,3 +42,25 @@ export async function apiGet<T>(
   }
   return (await response.json()) as T;
 }
+
+export async function apiPost<T>(
+  path: string,
+  body?: any,
+): Promise<T> {
+  const url = new URL(path, window.location.origin);
+  const response = await fetch(url.toString(), {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!response.ok) {
+    throw new ApiError(
+      response.status,
+      `Żądanie API nie powiodło się: ${response.status} ${response.statusText}`,
+    );
+  }
+  return (await response.json()) as T;
+}

@@ -4,63 +4,8 @@ import { Brain, CheckCircle2, Settings, Terminal, WifiOff, Activity, AlertCircle
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 
-/* ── Mock AI/MCP Server Data ── */
-interface McpServer {
-  id: string;
-  name: string;
-  provider: string;
-  status: 'connected' | 'disconnected' | 'error';
-  endpoint: string;
-  tools: string[];
-  lastPing: number;
-  requestsToday: number;
-}
-
-interface AuditEntry {
-  id: string;
-  timestamp: string;
-  server: string;
-  tool: string;
-  input: string;
-  latencyMs: number;
-  status: 'success' | 'error';
-}
-
-const MOCK_SERVERS: McpServer[] = [
-  {
-    id: 'mcp-01', name: 'ThreatIntel Analyzer', provider: 'Cloudflare Workers AI',
-    status: 'connected', endpoint: 'https://ti-analyzer.honeygrid.workers.dev',
-    tools: ['query_threat_logs', 'enrich_ip', 'classify_attack', 'generate_ioc'],
-    lastPing: 12, requestsToday: 847,
-  },
-  {
-    id: 'mcp-02', name: 'Sentinel Bridge', provider: 'Azure Functions',
-    status: 'connected', endpoint: 'https://hg-sentinel-bridge.azurewebsites.net/mcp',
-    tools: ['create_incident', 'update_watchlist', 'run_kql_query'],
-    lastPing: 34, requestsToday: 312,
-  },
-  {
-    id: 'mcp-03', name: 'Actor Profiler', provider: 'Azure OpenAI (gpt-4o-mini)',
-    status: 'connected', endpoint: 'https://hg-ai-profiler.openai.azure.com',
-    tools: ['build_actor_dossier', 'cluster_sessions', 'assess_sophistication'],
-    lastPing: 89, requestsToday: 156,
-  },
-  {
-    id: 'mcp-04', name: 'OSINT Enrichment', provider: 'Self-hosted',
-    status: 'disconnected', endpoint: 'https://osint.internal.honeygrid.net/v1',
-    tools: ['whois_lookup', 'dns_history', 'certificate_transparency'],
-    lastPing: -1, requestsToday: 0,
-  },
-];
-
-const MOCK_AUDIT: AuditEntry[] = [
-  { id: 'a1', timestamp: '2026-06-14T18:12:04Z', server: 'ThreatIntel Analyzer', tool: 'classify_attack', input: '{"ip":"185.220.101.42","type":"brute-force"}', latencyMs: 142, status: 'success' },
-  { id: 'a2', timestamp: '2026-06-14T18:11:58Z', server: 'Sentinel Bridge', tool: 'create_incident', input: '{"severity":"high","title":"Mass brute-force from AS12389"}', latencyMs: 234, status: 'success' },
-  { id: 'a3', timestamp: '2026-06-14T18:11:41Z', server: 'Actor Profiler', tool: 'build_actor_dossier', input: '{"actorId":"actor-7f3a9c21"}', latencyMs: 1820, status: 'success' },
-  { id: 'a4', timestamp: '2026-06-14T18:11:22Z', server: 'ThreatIntel Analyzer', tool: 'enrich_ip', input: '{"ip":"43.156.88.201"}', latencyMs: 89, status: 'success' },
-  { id: 'a5', timestamp: '2026-06-14T18:10:55Z', server: 'OSINT Enrichment', tool: 'whois_lookup', input: '{"ip":"203.0.113.45"}', latencyMs: 0, status: 'error' },
-  { id: 'a6', timestamp: '2026-06-14T18:10:30Z', server: 'ThreatIntel Analyzer', tool: 'generate_ioc', input: '{"hash":"sha256:e3b0c44...","type":"malware-dropper"}', latencyMs: 312, status: 'success' },
-];
+import { useMcp } from '@/lib/useMcp';
+import type { McpServerState } from '@/lib/useMcp';
 
 /* ── JSON Syntax Highlighter ── */
 function JsonHighlighter({ jsonString }: { jsonString: string }) {
@@ -92,7 +37,7 @@ function JsonHighlighter({ jsonString }: { jsonString: string }) {
 
 
 /* ── Server Card (Cyber Node) ── */
-function ServerCard({ server, index }: { server: McpServer; index: number }) {
+function ServerCard({ server, index }: { server: McpServerState; index: number }) {
   const { t } = useTranslation();
   const [configOpen, setConfigOpen] = useState(false);
   const isConnected = server.status === 'connected';
@@ -220,6 +165,7 @@ function ServerCard({ server, index }: { server: McpServer; index: number }) {
    ══════════════════════════════════════════════════════════════════════ */
 export function AiIntegrationsPage() {
   const { t } = useTranslation();
+  const { servers, auditLog } = useMcp();
   return (
     <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 pb-10">
       <div>
@@ -234,7 +180,7 @@ export function AiIntegrationsPage() {
 
       {/* Server Cards Grid */}
       <div className="grid gap-5 xl:grid-cols-2">
-        {MOCK_SERVERS.map((server, idx) => (
+        {servers.map((server, idx) => (
           <ServerCard key={server.id} server={server} index={idx} />
         ))}
       </div>
@@ -270,7 +216,7 @@ export function AiIntegrationsPage() {
         {/* Terminal Body */}
         <div className="p-4 overflow-x-auto">
           <div className="min-w-[800px] max-h-[400px] overflow-y-auto custom-scrollbar pr-2 space-y-1">
-            {MOCK_AUDIT.map((entry, i) => (
+            {auditLog.map((entry, i) => (
               <motion.div
                 initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}

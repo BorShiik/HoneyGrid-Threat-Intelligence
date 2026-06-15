@@ -63,6 +63,15 @@ export const en: Resources = {
     firstSeen: 'First seen',
     lastSeen: 'Last seen',
     knownIps: 'Known IP addresses',
+    globalAnalytics: 'Global Threat Analytics',
+    globalSubtitle: 'Overview of all tracked campaigns and groups. AI model activity analysis based on behavioral patterns, known infrastructures, and attack chains.',
+    tracked: 'Tracked',
+    totalEvents: 'Total Events',
+    anomaliesDetected: 'Anomalous patterns detected: ',
+    severityDistribution: 'Severity Distribution',
+    topCountries: 'Top Attackers/Victims (Countries)',
+    groups: 'groups',
+    searchPlaceholder: 'Search actors...',
   },
   credentials: {
     title: 'Credential Intelligence',
@@ -135,6 +144,14 @@ export const en: Resources = {
     cpu: 'CPU',
     ram: 'RAM',
     connections: 'Connections',
+    location: {
+      frankfurt: 'Frankfurt',
+      amsterdam: 'Amsterdam',
+      dublin: 'Dublin',
+      virginia: 'Virginia',
+      singapore: 'Singapore',
+      seattle: 'Seattle',
+    },
   },
   ai: {
     title: 'AI Integrations (MCP)',
@@ -146,6 +163,7 @@ export const en: Resources = {
     requests: 'Requests',
     configuration: 'Configuration',
     ping: 'Ping',
+    availableTools: 'Available Tools',
   },
   ioc: {
     title: 'IoC Indicators (STIX)',
