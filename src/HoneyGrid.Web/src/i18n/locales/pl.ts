@@ -137,6 +137,7 @@ export const pl = {
   sdn: {
     title: 'Monitoring SDN',
     subtitle: 'Rozproszone węzły filtrowania ruchu',
+    demoNotice: 'Dane demonstracyjne — symulowana telemetria węzłów, nie pochodzi z rzeczywistej infrastruktury sieciowej.',
     dynamicMigration: 'Migracja dynamiczna',
     filtered: 'odfiltrowano',
     cpu: 'CPU',
@@ -154,6 +155,7 @@ export const pl = {
   ai: {
     title: 'Integracje AI (MCP)',
     subtitle: 'Serwery MCP i dziennik audytu narzędzi AI',
+    demoNotice: 'Dane demonstracyjne — serwery i dziennik audytu są generowane lokalnie do celów prezentacji, nie pochodzą z rzeczywistych serwerów MCP.',
     connected: 'Połączono',
     disconnected: 'Rozłączono',
     auditLog: 'Dziennik audytu AI',

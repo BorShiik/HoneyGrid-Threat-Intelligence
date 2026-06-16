@@ -5,7 +5,8 @@ import './i18n'; // initialise i18next (pl default, en/ru) before first render
 import './index.css';
 
 async function enableMocking() {
-  if (!import.meta.env.DEV) return;
+  // Włączamy mocki tylko jeśli jawnie powiemy VITE_USE_MOCKS=true
+  if (import.meta.env.VITE_USE_MOCKS !== 'true') return;
   const { worker } = await import('./mocks/browser');
   await worker.start({ onUnhandledRequest: 'bypass' });
 }

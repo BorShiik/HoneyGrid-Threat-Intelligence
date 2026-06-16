@@ -155,6 +155,17 @@ public sealed class IngestionWorker(
             }
             else
             {
+                // Drop health probes (127.0.0.1) from ACA ingress to save Cosmos DB costs
+                if (evt.AttackerIp == "127.0.0.1")
+                {
+                    var c = _partitionCounters.AddOrUpdate(args.Partition.PartitionId, 1, (_, current) => current + 1);
+                    if (c % _options.CheckpointEveryEvents == 0)
+                    {
+                        await args.UpdateCheckpointAsync(args.CancellationToken);
+                    }
+                    return;
+                }
+
                 // 1. Wzbogacanie (GeoIP, rDNS, AbuseIPDB) — każdy krok degraduje się łagodnie.
                 evt = await pipeline.EnrichAsync(evt, args.CancellationToken);
 

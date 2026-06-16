@@ -208,7 +208,7 @@ function NodeCard({ node, onToggle }: { node: SdnNode; onToggle: (id: string) =>
    ══════════════════════════════════════════════════════════════════════ */
 export function SdnMonitoringPage() {
   const { t } = useTranslation();
-  const { nodes, loading, toggleMigration } = useSdnTelemetry();
+  const { nodes, toggleMigration } = useSdnTelemetry();
   
   // Simulated Global Traffic Data
   const [globalTraffic, setGlobalTraffic] = useState<{ time: string; value: number }[]>([]);
@@ -241,6 +241,10 @@ export function SdnMonitoringPage() {
           </h2>
           <p className="mt-1 text-sm text-zinc-400">
             {t('sdn.subtitle', 'Распределённые узлы фильтрации трафика. Управление балансировкой.')}
+          </p>
+          <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-amber-500">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            {t('sdn.demoNotice')}
           </p>
         </div>
         <div className="hidden sm:flex items-center gap-2 text-xs text-zinc-500 font-mono bg-white/5 px-3 py-1.5 rounded-lg border border-white/10 shadow-inner">

@@ -156,6 +156,8 @@ let simTimer: ReturnType<typeof setInterval> | undefined;
 
 /** Adds one event to the shared buffer (dedup by id) and notifies subscribers. */
 function broadcast(event: HoneypotEvent): void {
+  if (event.attackerIp === '127.0.0.1') return; // Filter out ACA health probes
+
   const existing = sharedEvents.findIndex((e) => e.id === event.id);
   if (existing !== -1) {
     const merged = sharedEvents.slice();
@@ -188,7 +190,7 @@ function ensureStreamStarted(): void {
   if (streamStarted) return;
   streamStarted = true;
 
-  if (import.meta.env.PROD) {
+  if (import.meta.env.PROD || import.meta.env.VITE_USE_MOCKS !== 'true') {
     // Connect to the real SignalR hub; fall back to the simulator only if the
     // hub is genuinely unreachable, so the dashboard still shows activity.
     startAttackHub(broadcast)

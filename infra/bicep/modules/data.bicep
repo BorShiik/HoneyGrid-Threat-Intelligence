@@ -71,6 +71,11 @@ var cosmosContainers = [
     partitionKey: '/bucket'
     defaultTtl: 2592000 // 30 dni — dane pod dashboard, szybko się starzeją
   }
+  {
+    name: 'leases'
+    partitionKey: '/id'
+    defaultTtl: null // dla CosmosDBTrigger (Azure Functions)
+  }
 ]
 
 // ---------------------------------------------------------------------------

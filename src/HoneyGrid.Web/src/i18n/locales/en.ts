@@ -139,6 +139,7 @@ export const en: Resources = {
   sdn: {
     title: 'SDN Monitoring',
     subtitle: 'Distributed traffic-filtering nodes',
+    demoNotice: 'Demo data — simulated node telemetry; not real network infrastructure.',
     dynamicMigration: 'Dynamic migration',
     filtered: 'filtered',
     cpu: 'CPU',
@@ -156,6 +157,7 @@ export const en: Resources = {
   ai: {
     title: 'AI Integrations (MCP)',
     subtitle: 'MCP servers and AI tool audit log',
+    demoNotice: 'Demo data — servers and audit log are generated locally for presentation purposes; not connected to real MCP servers.',
     connected: 'Connected',
     disconnected: 'Disconnected',
     auditLog: 'AI Audit Log',

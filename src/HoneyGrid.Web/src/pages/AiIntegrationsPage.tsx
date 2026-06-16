@@ -176,6 +176,10 @@ export function AiIntegrationsPage() {
         <p className="mt-1 text-sm text-zinc-400">
           {t('ai.subtitle', 'Serwery MCP i dziennik audytu narzędzi AI')}
         </p>
+        <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-amber-500">
+          <AlertCircle className="h-3.5 w-3.5" />
+          {t('ai.demoNotice')}
+        </p>
       </div>
 
       {/* Server Cards Grid */}
@@ -206,10 +210,10 @@ export function AiIntegrationsPage() {
            
            <div className="flex items-center gap-2">
              <span className="relative flex h-2 w-2">
-               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-50" />
-               <span className="relative inline-flex h-2 w-2 rounded-full bg-rose-500" />
+               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-50" />
+               <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
              </span>
-             <span className="text-[9px] font-mono font-bold text-rose-500 uppercase tracking-widest">Live Stream</span>
+             <span className="text-[9px] font-mono font-bold text-amber-500 uppercase tracking-widest">{t('common.demoMode')}</span>
            </div>
         </div>
 
