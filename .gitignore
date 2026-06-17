@@ -8,6 +8,8 @@ obj/
 out/
 publish/
 src/HoneyGrid.Functions/func.zip
+# Paczki wdrożeniowe Functions (artefakty builda, nie kod źródłowy)
+**/functionapp.zip
 *.user
 *.suo
 .vs/
@@ -30,6 +32,11 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# ── Bazy GeoLite2 (MaxMind) ──────────────────────────
+# Licencja MaxMind zabrania redystrybucji + pliki są duże (~60 MB).
+# Dogrywane lokalnie wg src/HoneyGrid.Ingestion/geoip/README.md.
+*.mmdb
 
 # ── Środowisko / sekrety ──────────────────────────────
 # (pliki *.bicepparam trzymamy w repo — to parametry, nie sekrety)

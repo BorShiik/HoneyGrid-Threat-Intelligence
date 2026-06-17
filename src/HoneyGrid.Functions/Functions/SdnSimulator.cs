@@ -52,9 +52,10 @@ public sealed class SdnSimulator
 
         var events = new List<SdnTelemetryEvent>();
 
+        var now = DateTimeOffset.UtcNow;
         foreach (var node in nodes)
         {
-            if (node.Status == "offline")
+            if (node.Status == "offline" || (node.LastSeen.HasValue && (now - node.LastSeen.Value) > TimeSpan.FromHours(1)))
             {
                 events.Add(new SdnTelemetryEvent
                 {

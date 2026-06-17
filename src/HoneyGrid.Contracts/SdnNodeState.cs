@@ -14,8 +14,11 @@ public class SdnNodeState
     public required string Location { get; init; }
 
     [JsonPropertyName("status")]
-    public required string Status { get; init; }
+    public required string Status { get; set; }
 
     [JsonPropertyName("dynamicMigration")]
     public bool DynamicMigration { get; set; }
+
+    [JsonPropertyName("lastSeen")]
+    public DateTimeOffset? LastSeen { get; set; }
 }

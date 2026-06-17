@@ -51,13 +51,12 @@ public sealed class SdnController
             nodes.AddRange(page);
         }
 
-        if (nodes.Count == 0)
+        var now = DateTimeOffset.UtcNow;
+        foreach (var node in nodes)
         {
-            // Initialize DB with default nodes
-            foreach (var node in DefaultNodes)
+            if (node.LastSeen.HasValue && (now - node.LastSeen.Value) > TimeSpan.FromHours(1))
             {
-                await container.Container.UpsertItemAsync(node, new PartitionKey(node.Id), cancellationToken: cancellationToken);
-                nodes.Add(node);
+                node.Status = "offline";
             }
         }
 

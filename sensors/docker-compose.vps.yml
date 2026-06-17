@@ -1,0 +1,99 @@
+# ============================================================================
+# HoneyGrid — sensory na zewnętrznym VPS (Cowrie + Web + TCP)
+#
+# Sensory są BEZSTANOWE: tylko nasłuchują portów i wysyłają zdarzenia do Azure
+# Event Hubs (bezkluczowo, przez Service Principal). Cała logika i baza zostają
+# w Azure. Pełna instrukcja: docs/vps-deployment.md.
+#
+# Uruchomienie:
+#   cp .env.example .env   &&   nano .env   &&   chmod 600 .env
+#   docker login <ACR> -u <appId> -p <password>
+#   docker compose -f docker-compose.vps.yml up -d
+#
+# Sekrety (AZURE_CLIENT_SECRET itd.) wczytywane są z pliku .env (env_file),
+# a NIE wpisywane na sztywno do tego pliku — dzięki temu compose można trzymać
+# w repo, a sekret zostaje lokalnie na VPS.
+# ============================================================================
+
+# Wspólne zmienne logowania do Azure + cel Event Hubs (współdzielone przez
+# wszystkie kontenery przez kotwicę YAML).
+x-azure-auth: &azure-auth
+  AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+  AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+  AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
+  HoneyGrid__EventHubFullyQualifiedNamespace: ${HONEYGRID_EVENTHUB_NAMESPACE}
+  HoneyGrid__EventHubName: ${HONEYGRID_EVENTHUB_NAME:-honeypot-events}
+  HoneyGrid__LocalLogOnly: "false"
+
+services:
+  # ── 1. SSH/Telnet honeypot (Cowrie) ───────────────────────────────────────
+  # Pythonowy honeypot (zespół Track A). Zapisuje cowrie.json oraz binarne
+  # nagrania TTY na WSPÓŁDZIELONYM wolumenie `cowrie-logs`, który czyta sidecar.
+  cowrie:
+    image: ${HONEYGRID_ACR}/honeygrid-cowrie:latest
+    container_name: cowrie
+    restart: always
+    ports:
+      - "22:2222"   # SSH — przyjmujemy ataki na publicznym 22
+      - "23:2223"   # Telnet
+    volumes:
+      # Montaż zgodny z cowrie.cfg (log_path/state_path = var/log/cowrie,
+      # względem katalogu domowego /cowrie/cowrie-git).
+      - cowrie-logs:/cowrie/cowrie-git/var/log/cowrie
+
+  # ── 1.1 Sidecar: CowrieShipper (cowrie.json → Event Hubs, TTY → Blob) ──────
+  cowrie-shipper:
+    image: ${HONEYGRID_ACR}/honeygrid-cowrie-shipper:latest
+    container_name: cowrie-shipper
+    restart: always
+    env_file: .env
+    environment:
+      <<: *azure-auth
+      HoneyGrid__SensorId: "cowrie-vps-${HONEYGRID_SITE:-site}"
+      HoneyGrid__SensorType: "ssh"
+      CowrieShipper__LogPath: "/var/log/cowrie/cowrie.json"
+      CowrieShipper__TtyLocalDir: "/var/log/cowrie/tty"
+      CowrieShipper__TtyContainer: "tty"
+      # Endpoint Blob do nagrań TTY (Session Replay). Pusty → upload pomijany.
+      CowrieShipper__BlobServiceUri: ${HONEYGRID_BLOB_ENDPOINT:-}
+    volumes:
+      # UWAGA: montaż RW (NIE :ro). Sidecar tworzy katalog /var/log/cowrie/tty
+      # z prawami 0777, zanim Cowrie zapisze pierwsze nagranie — na świeżym
+      # wolumenie Cowrie nie tworzy go sam (FileNotFoundError/PermissionError).
+      - cowrie-logs:/var/log/cowrie
+    depends_on:
+      - cowrie
+
+  # ── 2. WEB honeypot (fałszywy panel logowania) ────────────────────────────
+  web-honeypot:
+    image: ${HONEYGRID_ACR}/honeygrid-web:latest
+    container_name: web-honeypot
+    restart: always
+    env_file: .env
+    ports:
+      - "80:8080"
+      - "443:8080"  # Uwaga: zwykły HTTP na 443 (bez TLS) — skanery i tak pukają,
+                    #        a celem jest złapanie realnego IP, nie poprawny handshake.
+    environment:
+      <<: *azure-auth
+      HoneyGrid__SensorId: "web-vps-${HONEYGRID_SITE:-site}"
+      HoneyGrid__SensorType: "web"
+
+  # ── 3. Generyczny nasłuch TCP (RDP itd.) ──────────────────────────────────
+  tcp-listener:
+    image: ${HONEYGRID_ACR}/honeygrid-tcp:latest
+    container_name: tcp-listener
+    restart: always
+    env_file: .env
+    ports:
+      - "3389:3389"  # RDP
+    environment:
+      <<: *azure-auth
+      HoneyGrid__SensorId: "tcp-vps-${HONEYGRID_SITE:-site}"
+      HoneyGrid__SensorType: "rdp"
+      # Słuchamy tylko 3389 — port 23 (Telnet) obsługuje Cowrie, więc nie
+      # dublujemy go w generycznym listenerze.
+      TcpSensor__Ports__0: "3389"
+
+volumes:
+  cowrie-logs:
