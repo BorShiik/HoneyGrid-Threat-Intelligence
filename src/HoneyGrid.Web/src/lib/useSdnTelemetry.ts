@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { apiGet, apiPost } from '@/api/client';
+import { funcGet, funcPost } from '@/api/client';
 import { getAttackHubConnection } from '@/api/signalr';
 
 export interface SdnNodeState {
@@ -28,7 +28,7 @@ export function useSdnTelemetry() {
 
   // Initialize nodes from API
   useEffect(() => {
-    apiGet<SdnNodeState[]>('/api/sdn/nodes')
+    funcGet<SdnNodeState[]>('/api/sdn/nodes')
       .then(data => {
         setNodes(data.map(n => ({
           ...n,
@@ -94,7 +94,7 @@ export function useSdnTelemetry() {
     // Optimistic UI update
     setNodes(prev => prev.map(n => n.id === id ? { ...n, dynamicMigration: !n.dynamicMigration } : n));
     try {
-      await apiPost(`/api/sdn/nodes/${id}/migration`);
+      await funcPost(`/api/sdn/nodes/${id}/migration`);
     } catch (e) {
       console.error('Failed to toggle migration', e);
       // Revert on failure

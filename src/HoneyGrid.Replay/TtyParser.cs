@@ -5,31 +5,33 @@ namespace HoneyGrid.Replay;
 /// <summary>
 /// Parser binarnego formatu nagrań TTY Cowrie ("ttylog").
 ///
-/// FORMAT REKORDU (little-endian), nagłówek 16 bajtów + dane:
+/// FORMAT REKORDU — zweryfikowany na rzeczywistym zrzucie Cowrie. Nagłówek 24 bajty
+/// (6 × uint32 little-endian) + dane:
 /// <code>
-///   offset 0  : uint32 op      — typ operacji (1 = OP_WRITE/output 'o', 2 = OP_READ/input 'i')
-///   offset 4  : uint32 length  — liczba bajtów danych następujących po nagłówku
-///   offset 8  : uint32 sec     — sekundy znacznika czasu (epoch)
-///   offset 12 : uint32 usec    — mikrosekundy znacznika czasu
-///   offset 16 : byte[length]   — surowe dane terminala (UTF-8 / sekwencje ANSI / binaria)
+///   offset 0  : uint32 op        — 1=OP_OPEN, 2=OP_CLOSE, 3=OP_WRITE (rekord danych)
+///   offset 4  : uint32 (0)       — pole zarezerwowane (zawsze 0)
+///   offset 8  : uint32 length    — liczba bajtów danych po nagłówku (0 dla OPEN/CLOSE)
+///   offset 12 : uint32 direction — 1=TYPE_INPUT (atakujący 'i'), 2=TYPE_OUTPUT (honeypot 'o')
+///   offset 16 : uint32 sec       — sekundy znacznika czasu (epoch)
+///   offset 20 : uint32 usec      — mikrosekundy znacznika czasu
+///   offset 24 : byte[length]     — surowe dane terminala (UTF-8 / sekwencje ANSI / binaria)
 /// </code>
 ///
-/// OffsetMs każdej klatki = (czas rekordu − czas pierwszego rekordu) w milisekundach,
-/// gdzie czas = sec * 1000 + usec / 1000.
+/// Rekordy danych mają op=OP_WRITE(3); kierunek 'i'/'o' niesie pole <c>direction</c>
+/// (NIE op). Rekordy OP_OPEN/OP_CLOSE wyznaczają znacznik czasu (pierwszy = punkt
+/// zerowy), ale nie produkują klatek (brak danych).
 ///
-/// UWAGA (uczciwie): rzeczywisty format ttylog Cowrie bywa minimalnie różny między
-/// wersjami. Parser celuje w udokumentowany wyżej nagłówek 16-bajtowy; testy używają
-/// spreparowanych fikstur zgodnych z tym układem, a pierwszy prawdziwy zrzut Cowrie
-/// posłuży do weryfikacji. Parser jest defensywny: obcięte/uszkodzone dane → łagodne
-/// zatrzymanie (zwraca klatki sparsowane do tej pory, bez wyjątku).
+/// OffsetMs klatki = (czas rekordu − czas pierwszego rekordu) w ms, gdzie
+/// czas = sec * 1000 + usec / 1000. Parser jest defensywny: obcięte/uszkodzone
+/// dane → łagodne zatrzymanie (zwraca klatki sparsowane do tej pory, bez wyjątku).
 /// </summary>
 public static class TtyParser
 {
     /// <summary>Rozmiar nagłówka pojedynczego rekordu w bajtach.</summary>
-    public const int HeaderSize = 16;
+    public const int HeaderSize = 24;
 
-    private const uint OpWrite = 1; // output honeypota → 'o'
-    private const uint OpRead = 2;  // input atakującego → 'i'
+    private const uint OpWrite = 3;   // rekord danych terminala (jedyny niosący payload)
+    private const uint TypeInput = 1; // direction: dane od atakującego → 'i' (TYPE_OUTPUT=2 → 'o')
 
     /// <summary>
     /// Parsuje surowy strumień bajtów nagrania TTY na listę klatek.
@@ -52,9 +54,11 @@ public static class TtyParser
         {
             var header = data.Slice(pos, HeaderSize);
             var op = BinaryPrimitives.ReadUInt32LittleEndian(header);
-            var length = BinaryPrimitives.ReadUInt32LittleEndian(header[4..]);
-            var sec = BinaryPrimitives.ReadUInt32LittleEndian(header[8..]);
-            var usec = BinaryPrimitives.ReadUInt32LittleEndian(header[12..]);
+            // offset 4 zarezerwowany (0); długość na offsecie 8, kierunek na 12.
+            var length = BinaryPrimitives.ReadUInt32LittleEndian(header[8..]);
+            var direction = BinaryPrimitives.ReadUInt32LittleEndian(header[12..]);
+            var sec = BinaryPrimitives.ReadUInt32LittleEndian(header[16..]);
+            var usec = BinaryPrimitives.ReadUInt32LittleEndian(header[20..]);
 
             var dataStart = pos + HeaderSize;
 
@@ -64,9 +68,7 @@ public static class TtyParser
                 break;
             }
 
-            var payload = data.Slice(dataStart, (int)length);
-
-            // Czas rekordu w ms; pierwszy rekord wyznacza punkt zerowy.
+            // Czas rekordu w ms; pierwszy rekord (zwykle OP_OPEN) wyznacza punkt zerowy.
             var recordMs = (long)sec * 1000 + usec / 1000;
             if (!haveFirst)
             {
@@ -74,14 +76,19 @@ public static class TtyParser
                 haveFirst = true;
             }
 
-            var offsetMs = recordMs - firstMs;
-            if (offsetMs < 0)
+            // Klatki tylko dla rekordów danych (OP_WRITE z payloadem); OPEN/CLOSE/inne pomijamy.
+            if (op == OpWrite && length > 0)
             {
-                offsetMs = 0; // ochrona przed nie-monotonicznymi znacznikami czasu
-            }
+                var offsetMs = recordMs - firstMs;
+                if (offsetMs < 0)
+                {
+                    offsetMs = 0; // ochrona przed nie-monotonicznymi znacznikami czasu
+                }
 
-            var type = op == OpRead ? 'i' : 'o';
-            frames.Add(new ReplayFrame(offsetMs, type, SafeUtf8.Decode(payload)));
+                var payload = data.Slice(dataStart, (int)length);
+                var type = direction == TypeInput ? 'i' : 'o';
+                frames.Add(new ReplayFrame(offsetMs, type, SafeUtf8.Decode(payload)));
+            }
 
             pos = dataStart + (int)length;
         }

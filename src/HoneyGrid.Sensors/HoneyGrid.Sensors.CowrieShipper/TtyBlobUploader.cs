@@ -42,11 +42,15 @@ public sealed class TtyBlobUploader(
             return false;
         }
 
-        if (!File.Exists(localTtyPath))
+        // Sidecar widzi współdzielony wolumen pod innym punktem montowania niż Cowrie,
+        // więc ścieżkę z cowrie.json mapujemy: nazwa pliku + lokalny katalog TTY shippera.
+        var resolvedPath = Path.Combine(_options.TtyLocalDir, Path.GetFileName(localTtyPath));
+
+        if (!File.Exists(resolvedPath))
         {
             logger.LogWarning(
                 "Plik TTY {Path} nie istnieje — pomijam upload sesji {Session}.",
-                localTtyPath, sessionId);
+                resolvedPath, sessionId);
             return false;
         }
 
@@ -54,10 +58,11 @@ public sealed class TtyBlobUploader(
         {
             var service = _client.Value!;
             var container = service.GetBlobContainerClient(_options.TtyContainer);
+            await container.CreateIfNotExistsAsync(cancellationToken: ct);
             var blobName = TtyBlobNaming.BlobName(sessionId);
             var blob = container.GetBlobClient(blobName);
 
-            await using var fs = File.OpenRead(localTtyPath);
+            await using var fs = File.OpenRead(resolvedPath);
             await blob.UploadAsync(fs, overwrite: true, ct);
 
             logger.LogInformation(

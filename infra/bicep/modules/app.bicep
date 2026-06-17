@@ -563,6 +563,9 @@ resource cowrieApp 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'AZURE_CLIENT_ID', value: sensorIdentityClientId }
             // Ścieżka do tail-owanego pliku — ten sam mount co u Cowrie.
             { name: 'CowrieShipper__LogPath', value: '/var/log/cowrie/cowrie.json' }
+            // Upload nagrań TTY do Blob (Session Replay). Pusty => upload pomijany.
+            { name: 'CowrieShipper__BlobServiceUri', value: blobServiceUri }
+            { name: 'CowrieShipper__TtyLocalDir', value: '/var/log/cowrie/tty' }
           ]
           volumeMounts: [
             {

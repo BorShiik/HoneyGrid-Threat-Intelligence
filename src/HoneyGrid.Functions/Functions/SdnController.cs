@@ -35,7 +35,8 @@ public sealed class SdnController
 
     [Function(nameof(GetSdnNodes))]
     public async Task<HttpResponseData> GetSdnNodes(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "api/sdn/nodes")] HttpRequestData req,
+        // Bez prefiksu 'api/' — host sam dokłada 'api' → /api/sdn/nodes.
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "sdn/nodes")] HttpRequestData req,
         CancellationToken cancellationToken)
     {
         var db = _cosmos.GetDatabase(_databaseName);
@@ -67,7 +68,7 @@ public sealed class SdnController
 
     [Function(nameof(ToggleMigration))]
     public async Task<HttpResponseData> ToggleMigration(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "api/sdn/nodes/{id}/migration")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "sdn/nodes/{id}/migration")] HttpRequestData req,
         string id,
         CancellationToken cancellationToken)
     {

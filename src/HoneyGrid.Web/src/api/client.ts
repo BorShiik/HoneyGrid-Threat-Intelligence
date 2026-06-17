@@ -11,6 +11,23 @@
  */
 const API_BASE = import.meta.env.VITE_API_BASE ?? window.location.origin;
 
+/**
+ * Base URL for the Functions app. Serverless SignalR negotiate AND the MCP/SDN
+ * HTTP endpoints live on the Functions host, NOT on the Container API. Derived
+ * from VITE_SIGNALR_URL's origin so no extra env var is needed. In dev/MSW
+ * (no VITE_SIGNALR_URL) it stays the dev origin, so the mock worker keeps
+ * intercepting /api/mcp/* and /api/sdn/*.
+ */
+const FUNC_BASE = (() => {
+  const signalr = import.meta.env.VITE_SIGNALR_URL;
+  if (!signalr) return window.location.origin;
+  try {
+    return new URL(signalr).origin;
+  } catch {
+    return window.location.origin;
+  }
+})();
+
 export class ApiError extends Error {
   readonly status: number;
 
@@ -33,6 +50,49 @@ export async function apiGet<T>(
   }
   const response = await fetch(url.toString(), {
     headers: { Accept: 'application/json' },
+  });
+  if (!response.ok) {
+    throw new ApiError(
+      response.status,
+      `Żądanie API nie powiodło się: ${response.status} ${response.statusText}`,
+    );
+  }
+  return (await response.json()) as T;
+}
+
+/** Like apiGet, but targets the Functions app (MCP/SDN endpoints). */
+export async function funcGet<T>(
+  path: string,
+  params?: Record<string, string | number | undefined>,
+): Promise<T> {
+  const url = new URL(path, FUNC_BASE);
+  if (params) {
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined) url.searchParams.set(key, String(value));
+    }
+  }
+  const response = await fetch(url.toString(), {
+    headers: { Accept: 'application/json' },
+  });
+  if (!response.ok) {
+    throw new ApiError(
+      response.status,
+      `Żądanie API nie powiodło się: ${response.status} ${response.statusText}`,
+    );
+  }
+  return (await response.json()) as T;
+}
+
+/** Like apiPost, but targets the Functions app (SDN migration toggle). */
+export async function funcPost<T>(path: string, body?: any): Promise<T> {
+  const url = new URL(path, FUNC_BASE);
+  const response = await fetch(url.toString(), {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: body ? JSON.stringify(body) : undefined,
   });
   if (!response.ok) {
     throw new ApiError(

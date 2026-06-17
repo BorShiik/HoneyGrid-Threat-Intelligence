@@ -42,6 +42,8 @@ builder.Services.AddSingleton<EnrichmentPipeline>();
 
 // --- Sinki fan-outu ---
 builder.Services.AddSingleton<IEventSinkTarget, CosmosEventWriter>();
+// Projekcja sesji (Session Replay): buduje dokumenty kontenera "sessions" z ttyRef.
+builder.Services.AddSingleton<IEventSinkTarget, CosmosSessionWriter>();
 builder.Services.AddSingleton<IEventSinkTarget, RawBlobWriter>();
 // ServiceBusForwarder: singleton współdzielony jako sink i jako serwis w tle (pętla flush).
 builder.Services.AddSingleton<ServiceBusForwarder>();

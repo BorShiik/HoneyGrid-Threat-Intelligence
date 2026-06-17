@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity,
   Brain,
+  Clapperboard,
   ChevronLeft,
   ChevronRight,
   Fingerprint,
@@ -36,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/', labelKey: 'nav.dashboard', icon: LayoutDashboard },
   { to: '/threat-map', labelKey: 'nav.threatMap', icon: Globe2 },
   { to: '/live-feed', labelKey: 'nav.liveFeed', icon: Activity },
+  { to: '/sessions', labelKey: 'nav.sessions', icon: Clapperboard },
   { to: '/actors', labelKey: 'nav.analytics', icon: Fingerprint },
   { to: '/sdn', labelKey: 'nav.sdn', icon: Network },
   { to: '/credentials', labelKey: 'nav.credentials', icon: KeyRound },

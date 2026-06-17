@@ -43,6 +43,9 @@ public sealed class IngestionOptions
     /// <summary>Kontener Cosmos DB na wzbogacone zdarzenia (klucz partycji: /attackerIp).</summary>
     public string CosmosEventsContainer { get; set; } = "events";
 
+    /// <summary>Kontener Cosmos DB na projekcję sesji (klucz partycji: /sessionId) — Session Replay.</summary>
+    public string CosmosSessionsContainer { get; set; } = "sessions";
+
     /// <summary>FQDN przestrzeni nazw Service Bus, np. "hg-dev-sbns-x.servicebus.windows.net".</summary>
     public string? ServiceBusFullyQualifiedNamespace { get; set; }
 

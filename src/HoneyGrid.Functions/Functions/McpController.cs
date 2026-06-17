@@ -41,7 +41,9 @@ public sealed class McpController
 
     [Function(nameof(GetMcpServers))]
     public async Task<HttpResponseData> GetMcpServers(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "api/mcp/servers")] HttpRequestData req,
+        // Route bez prefiksu 'api/' — host Functions sam dokłada prefix 'api'
+        // (host.json domyślny), więc finalna ścieżka to /api/mcp/servers.
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "mcp/servers")] HttpRequestData req,
         CancellationToken cancellationToken)
     {
         var response = req.CreateResponse(HttpStatusCode.OK);

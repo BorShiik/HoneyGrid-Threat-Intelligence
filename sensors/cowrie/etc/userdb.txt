@@ -1,42 +1,44 @@
 # ============================================================================
-# HoneyGrid — baza poświadczeń Cowrie (userdb.txt)
+# HoneyGrid - Cowrie credential policy (userdb.txt)
 #
-# Format (jedna reguła na linię):  login:x:hasło
-#   - login / hasło mogą zawierać wildcardy:  * = dowolny ciąg
-#   - prefiks "!" przed hasłem = ODMÓW (deny) tej pary
-#   - kolejność ma znaczenie: pierwsza pasująca reguła wygrywa
+# Format (one rule per line):  login:x:password
+#   - login / password may use wildcards:  * = any string
+#   - "!" prefix before password = DENY this pair
+#   - order matters: first matching rule wins
 #
-# STRATEGIA (kluczowa decyzja badawcza):
-# Honeypot, który NIGDY nie wpuszcza, pokazuje tylko fazę brute-force. My
-# chcemy obserwować POST-EXPLOITATION (jakie komendy odpala atakujący po
-# zalogowaniu, skąd ściąga malware, jak persystuje). Dlatego CELOWO pozwalamy
-# zalogować się na kilka "słabych" par, które realnie są najczęściej zgadywane
-# przez botnety. Daje to wgląd w pełny łańcuch ataku, a TTY-nagranie sesji
-# trafia do Session Replay.
+# !!! IMPORTANT !!!
+# Cowrie reads this file as ASCII ONLY (auth.py: read_text(encoding="ascii")).
+# Any non-ASCII byte (e.g. Polish diacritics in comments) raises
+# UnicodeDecodeError, the userdb fails to load and EVERY login is denied.
+# Keep this entire file ASCII-only. Do not add accented characters.
 #
-# Jednocześnie ODMAWIAMY oczywistych par "testowych/skanerowych" (np. takich,
-# którymi skanery sprawdzają, czy host wpuszcza WSZYSTKO — bo host, który
-# akceptuje dowolne hasło, sam się demaskuje jako honeypot).
+# STRATEGY:
+# A honeypot that never lets anyone in only shows the brute-force phase. We
+# want to observe POST-EXPLOITATION (commands run after login, malware pulled,
+# persistence). So we deliberately allow a few "weak" credentials that botnets
+# guess most often, which gives the full attack chain and a TTY recording for
+# Session Replay. We first DENY obvious scanner-probe pairs (a host that
+# accepts literally everything fingerprints itself as a honeypot).
 # ============================================================================
 
-# --- ODMOWA: wzorce demaskujące honeypot ----------------------------------
-# Gdyby Cowrie akceptował dowolne hasło dla root, skaner natychmiast uznałby
-# host za przynętę. Najpierw więc jawnie odmawiamy podejrzanych par testowych,
-# a dopiero potem (niżej) wpuszczamy wąską, wiarygodną listę.
+# --- DENY: honeypot-revealing probe passwords -------------------------------
 root:x:!password
 root:x:!honeypot
 root:x:!test
 admin:x:!admin123
 
-# --- ZEZWOLENIE: wąska lista realistycznie słabych poświadczeń -------------
-# To są poświadczenia z czołówki list haseł botnetów IoT/SSH. Wpuszczamy je,
-# żeby studiować zachowanie po wejściu.
+# --- ALLOW: realistic weak creds + any password for common service accounts -
+# Earlier "!" rules already filtered the obvious scanner probes, so accepting
+# any other password for these accounts is safe and keeps the demo reliable.
 root:x:123456
 root:x:root
+root:x:*
 admin:x:admin
+admin:x:*
+user:x:*
+oracle:x:*
+pi:x:*
+ubuntu:x:*
 
-# --- DOMYŚLNIE: wszystko inne ODRZUĆ --------------------------------------
-# Każda inna para (login/hasło) jest odrzucana. Dzięki temu host NIE wygląda
-# jak "akceptuje wszystko" — zachowuje się jak serwer ze słabymi, ale
-# konkretnymi hasłami. Reguła łapie dowolny login i dowolne hasło.
+# --- DEFAULT: deny any other login ------------------------------------------
 *:x:!*

@@ -30,6 +30,31 @@ public sealed class CowrieTailWorker(
             "CowrieShipper śledzi plik {Path} (ReadToEndAndStop={Once})",
             _options.LogPath, _options.ReadToEndAndStop);
 
+        // Tworzymy katalog nagrań TTY na WSPÓŁDZIELONYM wolumenie. Cowrie (drugi
+        // kontener) nie zakłada go sam na świeżym wolumenie i bez niego pada
+        // FileNotFoundError przy zapisie ttylog. Shipper montuje ten sam wolumen
+        // (RW), więc katalog utworzony tutaj jest widoczny dla Cowrie po jego
+        // stronie montażu — zanim atakujący rozpocznie sesję.
+        try
+        {
+            Directory.CreateDirectory(_options.TtyLocalDir);
+            // KLUCZOWE: katalog tworzy shipper (inny uid niż Cowrie). Bez praw zapisu
+            // dla wszystkich Cowrie dostaje PermissionError [Errno 13] przy zapisie
+            // ttylog. Ustawiamy 0777, by proces Cowrie (user 'cowrie') mógł pisać.
+            if (!OperatingSystem.IsWindows())
+            {
+                File.SetUnixFileMode(_options.TtyLocalDir,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                    UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.GroupExecute |
+                    UnixFileMode.OtherRead | UnixFileMode.OtherWrite | UnixFileMode.OtherExecute);
+            }
+            logger.LogInformation("Katalog nagrań TTY gotowy (0777): {Dir}", _options.TtyLocalDir);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Nie udało się utworzyć/uprawnić katalogu TTY {Dir}", _options.TtyLocalDir);
+        }
+
         var pollDelay = TimeSpan.FromMilliseconds(Math.Max(100, _options.PollIntervalMs));
         long position = 0;
 

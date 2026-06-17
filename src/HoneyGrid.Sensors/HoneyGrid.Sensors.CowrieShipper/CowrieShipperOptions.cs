@@ -32,4 +32,12 @@ public sealed class CowrieShipperOptions
 
     /// <summary>Nazwa kontenera Blob na nagrania TTY. Domyślnie "tty".</summary>
     public string TtyContainer { get; set; } = "tty";
+
+    /// <summary>
+    /// Lokalny katalog z plikami nagrań TTY widziany PRZEZ SHIPPERA (sidecar montuje
+    /// współdzielony wolumen pod innym punktem niż Cowrie). Pole "ttylog" w cowrie.json
+    /// jest ścieżką w przestrzeni Cowrie, więc shipper bierze samą nazwę pliku i składa
+    /// ją z tym katalogiem. Domyślnie "/var/log/cowrie/tty" (mount shippera + /tty).
+    /// </summary>
+    public string TtyLocalDir { get; set; } = "/var/log/cowrie/tty";
 }

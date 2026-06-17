@@ -1,21 +1,16 @@
 $resourceGroup = "hg-dev-rg"
-$functionAppName = "hg-dev-func-jaugmcd2wlrx2"
+# Имя Function App берём из RG (суффикс зависит от подписки — не хардкодим).
+$functionAppName = az functionapp list -g $resourceGroup --query "[0].name" -o tsv
 
 Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host "🚀 DEPLOYING AZURE FUNCTION (AI & SIGNALR)" -ForegroundColor Cyan
+Write-Host "   Target: $functionAppName" -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
 
-Write-Host "1. Budowanie projektu HoneyGrid.Functions..."
-cd src\HoneyGrid.Functions
-dotnet publish -c Release -o publish
-
-Write-Host "2. Pakowanie do pliku ZIP (używając tar.exe)..."
-if (Test-Path functionapp.zip) { Remove-Item functionapp.zip -Force }
-# Windows 10/11 posiada natywne tar.exe, które bezbłędnie pakuje WSZYSTKIE pliki (w tym ukryte)
-tar.exe -a -c -f functionapp.zip -C publish .
-
-Write-Host "3. Wysylanie do chmury (może zająć minutę)..."
-az functionapp deployment source config-zip -g $resourceGroup -n $functionAppName --src functionapp.zip
+# func publish сам собирает, пакует и разворачивает (.NET isolated). Работает и для
+# Flex Consumption, и обходит баг legacy `config-zip` ("Invalid version 10.0" → тихий 503).
+Push-Location src\HoneyGrid.Functions
+func azure functionapp publish $functionAppName
+Pop-Location
 
 Write-Host "GOTOWE! Funkcja dziala w Azure." -ForegroundColor Green
-cd ..\..\..

@@ -97,7 +97,7 @@ public sealed class TtyParserTests
     {
         // Jeden poprawny rekord + 5 bajtów "ogona" (za mało na nagłówek 16 B).
         var bytes = new TtyFixtureBuilder()
-            .Add(TtyFixtureBuilder.OpWrite, 5, 0, "ok")
+            .Add(TtyFixtureBuilder.Output, 5, 0, "ok")
             .AddRaw([0x01, 0x02, 0x03, 0x04, 0x05])
             .ToArray();
 
@@ -110,13 +110,13 @@ public sealed class TtyParserTests
     [Fact]
     public void Parse_TruncatedPayload_StopsGracefully()
     {
-        // Poprawny rekord, potem nagłówek deklarujący 100 B danych, ale danych brak.
+        // Poprawny rekord, potem nagłówek (24 B) deklarujący 100 B danych, ale danych brak.
         var builder = new TtyFixtureBuilder()
-            .Add(TtyFixtureBuilder.OpWrite, 5, 0, "first");
-        // Ręcznie dopisany nagłówek z length=100 bez payloadu:
-        Span<byte> badHeader = stackalloc byte[16];
-        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(badHeader, 1);
-        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(badHeader[4..], 100);
+            .Add(TtyFixtureBuilder.Output, 5, 0, "first");
+        // Ręcznie dopisany nagłówek: op=3 (OP_WRITE), length=100 (offset 8) bez payloadu:
+        Span<byte> badHeader = stackalloc byte[24];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(badHeader, 3);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(badHeader[8..], 100);
         builder.AddRaw(badHeader.ToArray());
 
         var frames = TtyParser.Parse(builder.ToArray());
@@ -130,7 +130,7 @@ public sealed class TtyParserTests
     {
         // Niepoprawna sekwencja UTF-8 (samotne bajty kontynuacji 0x80 0xFF).
         var bytes = new TtyFixtureBuilder()
-            .Add(TtyFixtureBuilder.OpWrite, 1, 0, [0x80, 0xFF, 0xFE])
+            .Add(TtyFixtureBuilder.Output, 1, 0, [0x80, 0xFF, 0xFE])
             .ToArray();
 
         var frames = TtyParser.Parse(bytes);
@@ -141,16 +141,19 @@ public sealed class TtyParserTests
     }
 
     [Fact]
-    public void Parse_UnknownOp_DefaultsToOutput()
+    public void Parse_NonDataOps_Skipped()
     {
-        // op nieznane (np. 7) traktujemy jako output 'o'.
+        // Rekordy sterujące (op != OP_WRITE) — OPEN(1), CLOSE(2), nieznane (7) — nie niosą
+        // danych terminala i NIE produkują klatek (są tylko znacznikami czasu).
         var bytes = new TtyFixtureBuilder()
-            .Add(7, 1, 0, "x")
+            .AddControl(TtyFixtureBuilder.OpOpen, 1, 0)
+            .AddControl(7, 1, 0)
+            .AddControl(TtyFixtureBuilder.OpClose, 2, 0)
             .ToArray();
 
         var frames = TtyParser.Parse(bytes);
 
-        Assert.Equal('o', frames[0].Type);
+        Assert.Empty(frames);
     }
 
     [Fact]
@@ -158,8 +161,8 @@ public sealed class TtyParserTests
     {
         // Drugi rekord ma WCZEŚNIEJSZY znacznik niż pierwszy → offset nie może być ujemny.
         var bytes = new TtyFixtureBuilder()
-            .Add(TtyFixtureBuilder.OpWrite, 100, 0, "a")
-            .Add(TtyFixtureBuilder.OpWrite, 50, 0, "b")
+            .Add(TtyFixtureBuilder.Output, 100, 0, "a")
+            .Add(TtyFixtureBuilder.Output, 50, 0, "b")
             .ToArray();
 
         var frames = TtyParser.Parse(bytes);

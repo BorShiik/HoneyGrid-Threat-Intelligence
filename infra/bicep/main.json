@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.44.1.10279",
-      "templateHash": "15526663095568762771"
+      "templateHash": "16539602804782096724"
     }
   },
   "parameters": {
@@ -1534,7 +1534,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.44.1.10279",
-              "templateHash": "13254185462228142465"
+              "templateHash": "11074122858355491708"
             }
           },
           "parameters": {
@@ -1600,6 +1600,11 @@
                 "name": "aggregates",
                 "partitionKey": "/bucket",
                 "defaultTtl": 2592000
+              },
+              {
+                "name": "leases",
+                "partitionKey": "/id",
+                "defaultTtl": null
               }
             ]
           },
@@ -1963,7 +1968,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.44.1.10279",
-              "templateHash": "4203519304986221060"
+              "templateHash": "1467739204644082172"
             }
           },
           "parameters": {
@@ -2385,6 +2390,14 @@
                         {
                           "name": "CowrieShipper__LogPath",
                           "value": "/var/log/cowrie/cowrie.json"
+                        },
+                        {
+                          "name": "CowrieShipper__BlobServiceUri",
+                          "value": "[variables('blobServiceUri')]"
+                        },
+                        {
+                          "name": "CowrieShipper__TtyLocalDir",
+                          "value": "/var/log/cowrie/tty"
                         }
                       ],
                       "volumeMounts": [

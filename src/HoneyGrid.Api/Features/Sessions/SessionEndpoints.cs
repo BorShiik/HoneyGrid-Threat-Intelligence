@@ -24,11 +24,65 @@ public static class SessionEndpoints
     /// <summary>Rejestruje endpoint replay. Wywoływane z Program.cs orkiestratora.</summary>
     public static IEndpointRouteBuilder MapSessionEndpoints(this IEndpointRouteBuilder app)
     {
+        app.MapGet("/api/sessions", ListSessionsAsync)
+            .WithName("ListSessions")
+            .WithTags("Sessions");
+
         app.MapGet("/api/sessions/{id}/replay", GetReplayAsync)
             .WithName("GetSessionReplay")
             .WithTags("Sessions");
 
         return app;
+    }
+
+    /// <summary>
+    /// GET /api/sessions — lista sesji (projekcja z kontenera "sessions" budowana przez
+    /// CosmosSessionWriter w ingestii). Zwraca SessionSummary[] (camelCase) zgodny z frontendem,
+    /// posortowany malejąco po czasie startu. Pusta lista, gdy brak sesji (nie błąd).
+    /// </summary>
+    private static async Task<IResult> ListSessionsAsync(
+        CosmosClient cosmos,
+        IConfiguration configuration,
+        CancellationToken ct)
+    {
+        var databaseName = configuration["HoneyGrid:CosmosDatabase"] ?? "honeygrid";
+        var container = cosmos.GetContainer(databaseName, SessionsContainer);
+
+        var items = new List<SessionListItem>();
+        try
+        {
+            var query = new QueryDefinition(
+                "SELECT * FROM c WHERE c.docType = 'session' OR NOT IS_DEFINED(c.docType)");
+            using var iterator = container.GetItemQueryIterator<SessionListItem>(query);
+            while (iterator.HasMoreResults)
+            {
+                var page = await iterator.ReadNextAsync(ct);
+                items.AddRange(page);
+            }
+        }
+        catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            // Kontener jeszcze nie istnieje / brak danych — zwracamy pustą listę.
+            return Results.Json(Array.Empty<SessionSummary>(), CamelCaseJson);
+        }
+
+        var summaries = items
+            .Where(d => !string.IsNullOrWhiteSpace(d.SessionId))
+            .OrderByDescending(d => d.StartedAt ?? DateTimeOffset.UnixEpoch)
+            .Take(500)
+            .Select(d => new SessionSummary(
+                SessionId: d.SessionId!,
+                AttackerIp: string.IsNullOrEmpty(d.AttackerIp) ? "unknown" : d.AttackerIp!,
+                SensorId: string.IsNullOrEmpty(d.SensorId) ? "unknown" : d.SensorId!,
+                StartedAt: d.StartedAt ?? DateTimeOffset.UnixEpoch,
+                DurationMs: d.DurationMs ?? 0,
+                CommandCount: d.CommandCount ?? 0,
+                HasTty: d.HasTty ?? !string.IsNullOrWhiteSpace(d.TtyRef),
+                Country: d.Country ?? string.Empty,
+                CountryName: d.CountryName ?? string.Empty))
+            .ToList();
+
+        return Results.Json(summaries, CamelCaseJson);
     }
 
     private static async Task<IResult> GetReplayAsync(
@@ -126,5 +180,51 @@ public static class SessionEndpoints
 
         [System.Text.Json.Serialization.JsonPropertyName("ttyRef")]
         public string? TtyRef { get; init; }
+    }
+
+    /// <summary>Podsumowanie sesji zwracane przez GET /api/sessions (camelCase, zgodne z frontendem).</summary>
+    private sealed record SessionSummary(
+        string SessionId,
+        string AttackerIp,
+        string SensorId,
+        DateTimeOffset StartedAt,
+        long DurationMs,
+        int CommandCount,
+        bool HasTty,
+        string Country,
+        string CountryName);
+
+    /// <summary>Rzut dokumentu sesji z Cosmos do budowy listy (pola opcjonalne — tolerujemy częściowe sesje).</summary>
+    private sealed record SessionListItem
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("sessionId")]
+        public string? SessionId { get; init; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("attackerIp")]
+        public string? AttackerIp { get; init; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sensorId")]
+        public string? SensorId { get; init; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("startedAt")]
+        public DateTimeOffset? StartedAt { get; init; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("durationMs")]
+        public long? DurationMs { get; init; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("commandCount")]
+        public int? CommandCount { get; init; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("hasTty")]
+        public bool? HasTty { get; init; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("ttyRef")]
+        public string? TtyRef { get; init; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("country")]
+        public string? Country { get; init; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("countryName")]
+        public string? CountryName { get; init; }
     }
 }

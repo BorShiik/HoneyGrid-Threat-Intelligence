@@ -1,7 +1,11 @@
-$Registry = "hgdevacrjaugmcd2wlrx2.azurecr.io"
+# Имя ACR берём из группы ресурсов — детерминированный суффикс зависит от подписки,
+# поэтому не хардкодим (у разных подписок/участников команды он разный).
+$ResourceGroup = "hg-dev-rg"
+$AcrName  = az acr list -g $ResourceGroup --query "[0].name" -o tsv
+$Registry = az acr list -g $ResourceGroup --query "[0].loginServer" -o tsv
 
 Write-Host "Logowanie do Azure Container Registry ($Registry)..."
-az acr login -n hgdevacrjaugmcd2wlrx2
+az acr login -n $AcrName
 
 Write-Host "1. Budowanie i wysylanie: honeygrid-cowrie"
 docker build -t $Registry/honeygrid-cowrie:latest -f sensors/cowrie/Dockerfile sensors/cowrie

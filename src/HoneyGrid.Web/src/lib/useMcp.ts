@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { apiGet } from '@/api/client';
+import { funcGet } from '@/api/client';
 import { getAttackHubConnection } from '@/api/signalr';
 
 export interface McpServerState {
@@ -30,7 +30,7 @@ export function useMcp() {
 
   // Initialize servers from API
   useEffect(() => {
-    apiGet<McpServerState[]>('/api/mcp/servers')
+    funcGet<McpServerState[]>('/api/mcp/servers')
       .then(data => {
         setServers(data);
         setLoading(false);

@@ -11,6 +11,7 @@ import { CredentialsPage } from '@/pages/CredentialsPage';
 import { IocPage } from '@/pages/IocPage';
 import { SdnMonitoringPage } from '@/pages/SdnMonitoringPage';
 import { AiIntegrationsPage } from '@/pages/AiIntegrationsPage';
+import { SessionsPage } from '@/pages/SessionsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -32,6 +33,7 @@ export function App() {
               <Route index element={<DashboardPage />} />
               <Route path="threat-map" element={<ThreatMapPage />} />
               <Route path="live-feed" element={<LiveFeedPage />} />
+              <Route path="sessions" element={<SessionsPage />} />
               <Route path="actors" element={<ThreatActorsPage />} />
               <Route path="credentials" element={<CredentialsPage />} />
               <Route path="ioc" element={<IocPage />} />
