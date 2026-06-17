@@ -23,6 +23,8 @@ export const en: Resources = {
     noTty: 'no recording',
     selectHint: 'Select a session on the left to replay its TTY recording.',
     replayTitle: 'TTY player',
+    onlyWithRecording: 'Only with recording',
+    showAll: 'Show all',
   },
   topbar: {
     searchPlaceholder: 'Search',
