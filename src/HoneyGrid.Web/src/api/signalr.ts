@@ -52,6 +52,9 @@ export function getAttackHubConnection(): HubConnection {
 export async function startAttackHub(onAttack: AttackHandler): Promise<void> {
   const hub = getAttackHubConnection();
   hub.on(ATTACK_EVENT, onAttack);
+  
+  // Игнорируем события от ИИ-симулятора, чтобы они не спамили в консоль
+  hub.on('aiAuditLog', () => {});
 
   const { setStatus } = useConnectionStore.getState();
   setStatus('connecting');
