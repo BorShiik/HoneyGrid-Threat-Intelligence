@@ -31,16 +31,22 @@ public sealed class SdnController
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "sdn/nodes")] HttpRequestData req,
         CancellationToken cancellationToken)
     {
-        var db = _cosmos.GetDatabase(_databaseName);
-        var container = await db.CreateContainerIfNotExistsAsync("sdnNodes", "/id", cancellationToken: cancellationToken);
+        var container = _cosmos.GetContainer(_databaseName, "sdnNodes");
 
         var nodes = new List<SdnNodeState>();
-        var query = new QueryDefinition("SELECT * FROM c");
-        using var iterator = container.Container.GetItemQueryIterator<SdnNodeState>(query);
-        while (iterator.HasMoreResults)
+        try
         {
-            var page = await iterator.ReadNextAsync(cancellationToken);
-            nodes.AddRange(page);
+            var query = new QueryDefinition("SELECT * FROM c");
+            using var iterator = container.GetItemQueryIterator<SdnNodeState>(query);
+            while (iterator.HasMoreResults)
+            {
+                var page = await iterator.ReadNextAsync(cancellationToken);
+                nodes.AddRange(page);
+            }
+        }
+        catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // Kontener jeszcze nie istnieje
         }
 
         var now = DateTimeOffset.UtcNow;
