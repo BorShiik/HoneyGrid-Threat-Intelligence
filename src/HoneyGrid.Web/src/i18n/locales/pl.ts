@@ -21,6 +21,8 @@ export const pl = {
     noTty: 'brak nagrania',
     selectHint: 'Wybierz sesję z lewej, aby odtworzyć nagranie TTY.',
     replayTitle: 'Odtwarzacz TTY',
+    onlyWithRecording: 'Tylko z nagraniem',
+    showAll: 'Pokaż wszystkie',
   },
   topbar: {
     searchPlaceholder: 'Szukaj',

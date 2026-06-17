@@ -1,25 +1,19 @@
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Azure.Cosmos;
-using Azure.Identity;
 using HoneyGrid.Sensors.NodeMetrics;
 
-var host = Host.CreateDefaultBuilder(args)
-    .ConfigureServices((context, services) =>
-    {
-        var config = context.Configuration;
-        services.AddSingleton(sp =>
-        {
-            var endpoint = config["CosmosEndpoint"];
-            if (string.IsNullOrEmpty(endpoint))
-            {
-                throw new InvalidOperationException("Missing CosmosEndpoint in configuration.");
-            }
-            return new CosmosClient(endpoint, new DefaultAzureCredential());
-        });
-        
-        services.AddHostedService<Worker>();
-    })
-    .Build();
+// =============================================================================
+// HoneyGrid.Sensors.NodeMetrics — agent realnej telemetrii hosta VPS dla mapy SDN.
+// Czyta /proc i bezkluczowo PATCH-uje cpu/ram/ruch/połączenia do węzła w Cosmos
+// (kontener sdnNodes, id "node-<site>"). Konfiguracja: sekcja "NodeMetrics"
+// (env NodeMetrics__Site, NodeMetrics__CosmosEndpoint, ...). Uruchamiany jako
+// kontener obok sensorów na każdym VPS (AZURE_CLIENT_ID = tożsamość id-sensor).
+// =============================================================================
 
-await host.RunAsync();
+var builder = Host.CreateApplicationBuilder(args);
+
+builder.Services.AddOptions<NodeMetricsOptions>()
+    .Bind(builder.Configuration.GetSection(NodeMetricsOptions.SectionName));
+
+builder.Services.AddHostedService<NodeMetricsWorker>();
+
+var host = builder.Build();
+host.Run();

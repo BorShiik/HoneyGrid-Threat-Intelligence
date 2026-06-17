@@ -38,11 +38,9 @@ export function useMcp() {
       .catch(console.error);
   }, []);
 
-  // Connect to SignalR or run local simulator for MSW dev mode
+  // Subscribe to the real AI audit log broadcast over SignalR (emitted by ClassifyEvents).
   useEffect(() => {
-    let timer: any;
     let disposed = false;
-    let seq = 0;
 
     const applyAudit = (events: AiAuditEntry[]) => {
       if (disposed) return;

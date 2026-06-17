@@ -23,6 +23,8 @@ export const ru: Resources = {
     noTty: 'без записи',
     selectHint: 'Выберите сессию слева, чтобы воспроизвести TTY-запись.',
     replayTitle: 'TTY-плеер',
+    onlyWithRecording: 'Только с записью',
+    showAll: 'Показать все',
   },
   topbar: {
     searchPlaceholder: 'Поиск',

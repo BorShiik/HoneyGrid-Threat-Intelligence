@@ -49,6 +49,8 @@ export default function SessionReplayPlayer({ sessionId }: SessionReplayPlayerPr
   const writeQueueRef = useRef<string[]>([]);
   const rafRef = useRef<number | null>(null);
   const timersRef = useRef<number[]>([]);
+  // Interwał płynnie aktualizujący pozycję (slider jedzie też w "ciszy" między klatkami).
+  const tickerRef = useRef<number | null>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState<PlaybackSpeed>(1);
@@ -57,7 +59,13 @@ export default function SessionReplayPlayer({ sessionId }: SessionReplayPlayerPr
   const [positionMs, setPositionMs] = useState(0);
   const positionRef = useRef(0);
 
-  const frames = useMemo<SessionReplayFrame[]>(() => data?.frames ?? [], [data]);
+  // Tylko klatki WYJŚCIA ('o'). Strumień wyjścia zawiera już echo wpisanych znaków
+  // (shell odbija każdy klawisz), więc dołączanie klatek wejścia ('i') dublowałoby
+  // znaki ("wwhhooaammii" zamiast "whoami"). Wyjście = dokładnie to, co widział atakujący.
+  const frames = useMemo<SessionReplayFrame[]>(
+    () => (data?.frames ?? []).filter((f) => f.type === 'o'),
+    [data],
+  );
   const hasTty = frames.length > 0;
   const durationMs = useMemo(
     () => framesDuration(frames, data?.durationMs ?? 0),
@@ -70,6 +78,10 @@ export default function SessionReplayPlayer({ sessionId }: SessionReplayPlayerPr
     if (rafRef.current !== null) {
       window.cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
+    }
+    if (tickerRef.current !== null) {
+      window.clearInterval(tickerRef.current);
+      tickerRef.current = null;
     }
     writeQueueRef.current = [];
   }, []);
@@ -94,29 +106,40 @@ export default function SessionReplayPlayer({ sessionId }: SessionReplayPlayerPr
       schedule.forEach(({ frame, delayMs }) => {
         const id = window.setTimeout(() => {
           enqueueWrite(renderFrameData(frame.type, frame.data));
-          positionRef.current = frame.offsetMs;
-          setPositionMs(frame.offsetMs);
         }, delayMs);
         timersRef.current.push(id);
       });
-      const endId = window.setTimeout(
-        () => {
+      // Płynny pasek postępu: pozycję liczymy z zegara ściennego × prędkość, także
+      // w przerwach między klatkami (pauzy atakującego) — slider nie "zamiera".
+      // Po dojściu do końca zatrzymujemy odtwarzanie.
+      const startWall = performance.now();
+      tickerRef.current = window.setInterval(() => {
+        const pos = Math.min(durationMs, from + (performance.now() - startWall) * currentSpeed);
+        positionRef.current = pos;
+        setPositionMs(pos);
+        if (pos >= durationMs) {
+          if (tickerRef.current !== null) {
+            window.clearInterval(tickerRef.current);
+            tickerRef.current = null;
+          }
           setIsPlaying(false);
-          positionRef.current = durationMs;
-          setPositionMs(durationMs);
-        },
-        Math.max(0, (durationMs - from) / currentSpeed),
-      );
-      timersRef.current.push(endId);
+        }
+      }, 100);
     },
     [clearTimers, durationMs, enqueueWrite, frames],
   );
 
-  // Initialise terminal once (component is keyed per session by the parent).
+  // Initialise terminal AFTER data is loaded — while pending/error the component
+  // renders a skeleton/message (no container div), so the terminal div only
+  // exists once isPending/isError are false. Gating on them (not just mount)
+  // fixes the race where the player stayed blank because the effect ran once on
+  // the skeleton and never re-ran. Component is keyed per session by the parent.
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (isPending || isError || !containerRef.current) return;
     const term = new Terminal({
-      convertEol: false,
+      // true: traktuj samo '\n' jak '\r\n' (zrzuty ttylog Cowrie często nie mają
+      // CR → bez tego linie układają się "schodkami").
+      convertEol: true,
       disableStdin: true, // read-only — nobody can type into a replay
       cursorBlink: false,
       fontSize: 13,
@@ -135,6 +158,16 @@ export default function SessionReplayPlayer({ sessionId }: SessionReplayPlayerPr
     }
     termRef.current = term;
 
+    // Pokaż pełny zrzut sesji od razu (inaczej terminal jest pusty do kliknięcia
+    // Odtwórz, a przy sesjach exec/instant nie widać, że coś w nim jest).
+    // Odtwórz/Restart przewinie i odtworzy z taktowaniem czasowym.
+    if (frames.length > 0) {
+      const dump = frames.map((f) => renderFrameData(f.type, f.data)).join('');
+      if (dump) term.write(dump);
+      positionRef.current = durationMs;
+      setPositionMs(durationMs);
+    }
+
     const onResize = () => {
       try {
         fit.fit();
@@ -150,7 +183,7 @@ export default function SessionReplayPlayer({ sessionId }: SessionReplayPlayerPr
       term.dispose();
       termRef.current = null;
     };
-  }, [clearTimers]);
+  }, [clearTimers, isPending, isError, frames, durationMs]);
 
   const seekTo = useCallback(
     (target: number) => {
@@ -175,9 +208,11 @@ export default function SessionReplayPlayer({ sessionId }: SessionReplayPlayerPr
     const term = termRef.current;
     if (!term) return;
 
-    // Restart from the beginning if we are at (or past) the end.
+    // Restart od początku, gdy jesteśmy na końcu LUB nie ma już nic do odtworzenia
+    // od bieżącej pozycji (np. po wstępnym pełnym zrzucie pozycja jest na końcu).
     let from = positionRef.current;
-    if (from >= durationMs) {
+    const remaining = scheduleFrames(frames, from, speedRef.current);
+    if (from >= durationMs || remaining.length === 0) {
       term.reset();
       from = 0;
       positionRef.current = 0;
@@ -186,7 +221,7 @@ export default function SessionReplayPlayer({ sessionId }: SessionReplayPlayerPr
 
     setIsPlaying(true);
     runSchedule(from);
-  }, [durationMs, hasTty, runSchedule]);
+  }, [durationMs, frames, hasTty, runSchedule]);
 
   const pause = useCallback(() => {
     clearTimers();

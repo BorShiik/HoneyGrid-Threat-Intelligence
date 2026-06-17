@@ -68,7 +68,10 @@ public static class SessionEndpoints
 
         var summaries = items
             .Where(d => !string.IsNullOrWhiteSpace(d.SessionId))
-            .OrderByDescending(d => d.StartedAt ?? DateTimeOffset.UnixEpoch)
+            // Sesje z nagraniem TTY na górę (i gwarantowanie w limicie 500), potem najnowsze —
+            // honeypot zbiera setki samych połączeń botów bez komend/TTY.
+            .OrderByDescending(d => d.HasTty ?? !string.IsNullOrWhiteSpace(d.TtyRef))
+            .ThenByDescending(d => d.StartedAt ?? DateTimeOffset.UnixEpoch)
             .Take(500)
             .Select(d => new SessionSummary(
                 SessionId: d.SessionId!,
