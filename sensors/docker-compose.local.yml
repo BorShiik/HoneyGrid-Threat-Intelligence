@@ -1,0 +1,70 @@
+# ============================================================================
+# HoneyGrid — LOKALNE demo sensorow (BEZ Azure).
+#
+# Tryb LocalLogOnly=true: zdarzenia NIE ida do Event Hubs, tylko sa logowane
+# do konsoli kontenera jako "[LOKALNE] Zdarzenie honeypota: {JSON}".
+# Sluzy do pokazania "wp. eventy przychodza" na zywo przez `docker logs`.
+#
+# Build obrazow (z korzenia repo):
+#   docker build -t honeygrid-cowrie:latest sensors/cowrie
+#   docker build -f src/HoneyGrid.Sensors/HoneyGrid.Sensors.CowrieShipper/Dockerfile -t honeygrid-cowrie-shipper:latest .
+#   docker build -f src/HoneyGrid.Sensors/HoneyGrid.Sensors.Web/Dockerfile          -t honeygrid-web:latest .
+#   docker build -f src/HoneyGrid.Sensors/HoneyGrid.Sensors.Tcp/Dockerfile          -t honeygrid-tcp:latest .
+#
+# Start:  docker compose -f sensors/docker-compose.local.yml up -d
+# Logi:   docker compose -f sensors/docker-compose.local.yml logs -f
+# Stop:   docker compose -f sensors/docker-compose.local.yml down -v
+# ============================================================================
+
+services:
+  # SSH/Telnet honeypot. Lokalnie mapujemy 2222 (nie 22 — koliduje z sshd hosta).
+  cowrie:
+    image: honeygrid-cowrie:latest
+    container_name: cowrie
+    ports:
+      - "2222:2222"   # SSH
+      - "2323:2223"   # Telnet
+    volumes:
+      - cowrie-logs:/cowrie/cowrie-git/var/log/cowrie
+
+  # Sidecar: tail cowrie.json + tworzy katalog tty (fix zawieszania sesji).
+  cowrie-shipper:
+    image: honeygrid-cowrie-shipper:latest
+    container_name: cowrie-shipper
+    environment:
+      HoneyGrid__LocalLogOnly: "true"
+      HoneyGrid__SensorId: "cowrie-local"
+      HoneyGrid__SensorType: "cowrie"
+      CowrieShipper__LogPath: "/var/log/cowrie/cowrie.json"
+      CowrieShipper__TtyLocalDir: "/var/log/cowrie/tty"
+      CowrieShipper__BlobServiceUri: ""
+    volumes:
+      - cowrie-logs:/var/log/cowrie
+    depends_on:
+      - cowrie
+
+  # Web honeypot (falszywe panele WordPress/admin, wycieki .env/.git).
+  web-honeypot:
+    image: honeygrid-web:latest
+    container_name: web-honeypot
+    ports:
+      - "8080:8080"
+    environment:
+      HoneyGrid__LocalLogOnly: "true"
+      HoneyGrid__SensorId: "web-local"
+      HoneyGrid__SensorType: "web"
+
+  # Generyczny nasluch TCP (RDP 3389) z banner-grabbing.
+  tcp-listener:
+    image: honeygrid-tcp:latest
+    container_name: tcp-listener
+    ports:
+      - "3389:3389"
+    environment:
+      HoneyGrid__LocalLogOnly: "true"
+      HoneyGrid__SensorId: "tcp-local"
+      HoneyGrid__SensorType: "rdp"
+      TcpSensor__Ports__0: "3389"
+
+volumes:
+  cowrie-logs:

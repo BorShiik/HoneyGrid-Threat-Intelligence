@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { startAttackHub } from '@/api/signalr';
+import { apiGet } from '@/api/client';
 import { useConnectionStore } from '@/stores/connectionStore';
 import type { HoneypotEvent, HoneypotEventType, SensorType } from '@/types/api';
 
@@ -185,12 +186,31 @@ function startSimulatorOnce(): void {
   }, 1500);
 }
 
+/**
+ * Wstępne zasilenie bufora z REST /api/feed — żeby Strumień na żywo pokazywał
+ * ostatnie realne zdarzenia OD RAZU, niezależnie od SignalR. Wcześniej feed
+ * polegał wyłącznie na pushach SignalR, więc przy ciszy/limicie/leasie był pusty,
+ * mimo że w Cosmos są tysiące zdarzeń. SignalR dokłada nowe na bieżąco.
+ */
+async function seedFromApi(): Promise<void> {
+  try {
+    const recent = await apiGet<HoneypotEvent[]>('/api/feed', { take: 100 });
+    // API zwraca najnowsze pierwsze; broadcast() wstawia na początek, więc
+    // iterujemy od najstarszego, by zachować porządek (najnowsze na górze).
+    for (let i = recent.length - 1; i >= 0; i -= 1) broadcast(recent[i]);
+  } catch {
+    // Feed niedostępny — ignorujemy; SignalR lub symulator i tak zasilą widok.
+  }
+}
+
 /** Idempotent: starts the live stream exactly once for the app session. */
 function ensureStreamStarted(): void {
   if (streamStarted) return;
   streamStarted = true;
 
   if (import.meta.env.PROD || import.meta.env.VITE_USE_MOCKS !== 'true') {
+    // Najpierw pokaż ostatnie zdarzenia z REST (natychmiast), potem realtime.
+    void seedFromApi();
     // Connect to the real SignalR hub; fall back to the simulator only if the
     // hub is genuinely unreachable, so the dashboard still shows activity.
     startAttackHub(broadcast)
