@@ -290,7 +290,7 @@ chmod 600 sensors/.env
 docker compose -f sensors/docker-compose.vps.yml up -d
 ```
 
-Full walkthrough: [`docs/vps-deployment.md`](docs/vps-deployment.md).
+See [`sensors/docker-compose.vps.yml`](sensors/docker-compose.vps.yml) and [`sensors/.env.example`](sensors/.env.example) for the full sensor configuration.
 
 ---
 
