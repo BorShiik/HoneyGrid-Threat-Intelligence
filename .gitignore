@@ -33,6 +33,11 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# ── Artefakty obrazów Docker / zrzuty debug (nie kod) ─
+*.tar
+node-metrics.tar
+latest_feed.json
+
 # ── Bazy GeoLite2 (MaxMind) ──────────────────────────
 # Licencja MaxMind zabrania redystrybucji + pliki są duże (~60 MB).
 # Dogrywane lokalnie wg src/HoneyGrid.Ingestion/geoip/README.md.
@@ -74,3 +79,5 @@ __queuestorage__/
 logs/
 *.tmp
 *.bak
+*.zip
+

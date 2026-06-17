@@ -76,6 +76,11 @@ var cosmosContainers = [
     partitionKey: '/id'
     defaultTtl: null // dla CosmosDBTrigger (Azure Functions)
   }
+  {
+    name: 'sdnNodes'
+    partitionKey: '/id'
+    defaultTtl: null // Stan węzłów SDN jest bezterminowy
+  }
 ]
 
 // ---------------------------------------------------------------------------

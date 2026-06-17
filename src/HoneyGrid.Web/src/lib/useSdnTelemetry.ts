@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { funcGet, funcPost } from '@/api/client';
 import { getAttackHubConnection } from '@/api/signalr';
+import { ensureStreamStarted } from '@/lib/liveAttacks';
 
 export interface SdnNodeState {
   id: string;
@@ -59,9 +60,11 @@ export function useSdnTelemetry() {
       }));
     };
 
-    if (import.meta.env.PROD) {
+    if (import.meta.env.PROD || import.meta.env.VITE_USE_MOCKS !== 'true') {
+      ensureStreamStarted();
       const hub = getAttackHubConnection();
       hub.on('sdnTelemetry', applyTelemetry);
+      hub.on('sdntelemetry', applyTelemetry);
     } else {
       // Dev mode MSW fallback simulator (mirrors the Azure Function logic)
       timer = setInterval(() => {
@@ -86,7 +89,9 @@ export function useSdnTelemetry() {
     return () => {
       disposed = true;
       if (timer) clearInterval(timer);
-      if (import.meta.env.PROD) getAttackHubConnection().off('sdnTelemetry', applyTelemetry);
+      if (import.meta.env.PROD || import.meta.env.VITE_USE_MOCKS !== 'true') {
+        getAttackHubConnection().off('sdnTelemetry', applyTelemetry);
+      }
     };
   }, [nodes.length > 0]);
 

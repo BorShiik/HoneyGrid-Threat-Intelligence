@@ -10,13 +10,13 @@
 
   <PropertyGroup>
     <UserSecretsId>dotnet-HoneyGrid.Sensors.NodeMetrics-3a7c1e90-8f24-4b6d-9c2a-1e5d7f0b3a64</UserSecretsId>
-    <AzureCosmosDisableNewtonsoftJsonCheck>true</AzureCosmosDisableNewtonsoftJsonCheck>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
     <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.61.0" />
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 
   <ItemGroup>
