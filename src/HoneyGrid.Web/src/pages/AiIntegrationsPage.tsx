@@ -176,10 +176,6 @@ export function AiIntegrationsPage() {
         <p className="mt-1 text-sm text-zinc-400">
           {t('ai.subtitle', 'Serwery MCP i dziennik audytu narzędzi AI')}
         </p>
-        <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-amber-500">
-          <AlertCircle className="h-3.5 w-3.5" />
-          {t('ai.demoNotice')}
-        </p>
       </div>
 
       {/* Server Cards Grid */}
@@ -206,14 +202,6 @@ export function AiIntegrationsPage() {
              </div>
              <Terminal className="h-4 w-4 text-zinc-400" />
              <h3 className="text-[11px] font-mono font-bold uppercase tracking-widest text-zinc-300">{t('ai.auditLog', 'Dziennik audytu AI')}</h3>
-           </div>
-           
-           <div className="flex items-center gap-2">
-             <span className="relative flex h-2 w-2">
-               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-50" />
-               <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
-             </span>
-             <span className="text-[9px] font-mono font-bold text-amber-500 uppercase tracking-widest">{t('common.demoMode')}</span>
            </div>
         </div>
 

@@ -15,16 +15,8 @@ public sealed class SdnController
     private readonly ILogger<SdnController> _logger;
     private readonly string _databaseName;
 
-    // Default mock nodes if DB is empty
-    private static readonly List<SdnNodeState> DefaultNodes = new()
-    {
-        new SdnNodeState { Id = "sdn-01", Name = "Edge-WEU-01", Location = "frankfurt", Status = "active", DynamicMigration = true },
-        new SdnNodeState { Id = "sdn-02", Name = "Edge-WEU-02", Location = "amsterdam", Status = "active", DynamicMigration = false },
-        new SdnNodeState { Id = "sdn-03", Name = "Core-NEU-01", Location = "dublin", Status = "active", DynamicMigration = true },
-        new SdnNodeState { Id = "sdn-04", Name = "Edge-EUS-01", Location = "virginia", Status = "degraded", DynamicMigration = true },
-        new SdnNodeState { Id = "sdn-05", Name = "Edge-SEA-01", Location = "singapore", Status = "active", DynamicMigration = false },
-        new SdnNodeState { Id = "sdn-06", Name = "Core-WUS-01", Location = "seattle", Status = "offline", DynamicMigration = false },
-    };
+    // Brak danych mockowych: węzły pochodzą wyłącznie z kontenera sdnNodes,
+    // który naplniają realne sensory (CosmosSdnNodeWriter) i agent NodeMetrics.
 
     public SdnController(CosmosClient cosmos, IConfiguration config, ILogger<SdnController> logger)
     {

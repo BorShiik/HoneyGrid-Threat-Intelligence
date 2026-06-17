@@ -52,62 +52,12 @@ export function useMcp() {
       });
     };
 
-    if (import.meta.env.PROD) {
-      const hub = getAttackHubConnection();
-      hub.on('aiAuditLog', applyAudit);
-    } else {
-      // Dev mode MSW fallback simulator
-      const Tools01 = ["query_threat_logs", "enrich_ip", "classify_attack", "generate_ioc"];
-      const Tools02 = ["create_incident", "update_watchlist", "run_kql_query"];
-      const Tools03 = ["build_actor_dossier", "cluster_sessions", "assess_sophistication"];
-
-      timer = setInterval(() => {
-        const burst = Math.floor(Math.random() * 2) + 1;
-        const events: AiAuditEntry[] = [];
-        
-        for (let i = 0; i < burst; i++) {
-          seq++;
-          const serverChoice = Math.floor(Math.random() * 3);
-          let serverName = "";
-          let tool = "";
-          let input = "";
-
-          if (serverChoice === 0) {
-            serverName = "ThreatIntel Analyzer";
-            tool = Tools01[Math.floor(Math.random() * Tools01.length)];
-            if (tool === "classify_attack") input = `{"ip":"185.${Math.floor(Math.random()*100)+100}.101.42","type":"brute-force"}`;
-            else if (tool === "enrich_ip") input = `{"ip":"43.156.88.201"}`;
-            else input = `{"hash":"sha256:e3b0c44..."}`;
-          } else if (serverChoice === 1) {
-            serverName = "Sentinel Bridge";
-            tool = Tools02[Math.floor(Math.random() * Tools02.length)];
-            input = `{"severity":"high","title":"Mass brute-force"}`;
-          } else {
-            serverName = "Actor Profiler";
-            tool = Tools03[Math.floor(Math.random() * Tools03.length)];
-            input = `{"actorId":"actor-7f3a9c21"}`;
-          }
-
-          const isError = Math.random() > 0.9;
-          
-          events.push({
-            id: `dev-audit-${seq}`,
-            timestamp: new Date().toISOString(),
-            server: serverName,
-            tool,
-            input,
-            latencyMs: isError ? 0 : Math.floor(Math.random() * 1000 + 50),
-            status: isError ? 'error' : 'success'
-          });
-        }
-        applyAudit(events);
-      }, 3000);
-    }
+    const hub = getAttackHubConnection();
+    hub.on('aiAuditLog', applyAudit);
 
     return () => {
       disposed = true;
-      if (timer) clearInterval(timer);
-      if (import.meta.env.PROD) getAttackHubConnection().off('aiAuditLog', applyAudit);
+      hub.off('aiAuditLog', applyAudit);
     };
   }, []);
 

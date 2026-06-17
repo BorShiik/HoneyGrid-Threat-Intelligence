@@ -1,8 +1,10 @@
+using System.Text.Json;
 using HoneyGrid.Contracts;
 using HoneyGrid.Functions.Ai;
 using HoneyGrid.Functions.Classification;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.SignalRService;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -43,7 +45,8 @@ public sealed class ClassifyEvents
     }
 
     [Function(nameof(ClassifyEvents))]
-    public async Task Run(
+    [SignalROutput(HubName = "attacks")]
+    public async Task<SignalRMessageAction?> Run(
         [CosmosDBTrigger(
             databaseName: "%CosmosDatabase%",
             containerName: "events",
@@ -57,17 +60,35 @@ public sealed class ClassifyEvents
         IReadOnlyList<HoneypotEvent> changes,
         CancellationToken cancellationToken)
     {
-        if (changes is null || changes.Count == 0) return;
+        if (changes is null || changes.Count == 0) return null;
 
         // Klasyfikujemy tylko zdarzenia jeszcze bez wyniku (pomija własne PATCH-e).
         var pending = changes.Where(e => e.Classification is null).ToList();
-        if (pending.Count == 0) return;
+        if (pending.Count == 0) return null;
 
         var container = _cosmos.GetContainer(_databaseName, "events");
 
-        var aiResults = _classifier.Enabled
-            ? await _classifier.ClassifyAsync(pending, cancellationToken)
-            : new ClassificationInfo?[pending.Count];
+        IReadOnlyList<ClassificationInfo?> aiResults = new ClassificationInfo?[pending.Count];
+        SignalRMessageAction? auditAction = null;
+
+        if (_classifier.Enabled)
+        {
+            var (results, latency, isSuccess) = await _classifier.ClassifyAsync(pending, cancellationToken);
+            aiResults = results;
+
+            var auditEntry = new AiAuditEntry
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                Timestamp = DateTimeOffset.UtcNow.ToString("O"),
+                Server = $"HoneyGrid Classifier ({_classifier.DeploymentName})",
+                Tool = "classify_events_batch",
+                Input = JsonSerializer.Serialize(pending.Select(e => new { ip = e.AttackerIp, type = e.EventType })),
+                LatencyMs = (int)latency,
+                Status = isSuccess ? "success" : "error"
+            };
+
+            auditAction = new SignalRMessageAction("aiAuditLog", [new[] { auditEntry }]);
+        }
 
         var classified = 0;
         var usedAi = 0;
@@ -103,6 +124,8 @@ public sealed class ClassifyEvents
                 "Sklasyfikowano {Count} zdarzeń ({Ai} z AI, {Stub} ze stuba).",
                 classified, usedAi, classified - usedAi);
         }
+
+        return auditAction;
     }
 
     /// <summary>Wynik modelu jest użyteczny, gdy ma fazę lub kategorię.</summary>

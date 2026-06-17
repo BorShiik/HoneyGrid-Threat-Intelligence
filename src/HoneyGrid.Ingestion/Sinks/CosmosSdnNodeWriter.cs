@@ -56,45 +56,74 @@ public sealed class CosmosSdnNodeWriter : IEventSinkTarget, IDisposable
             return;
         }
 
+        // Węzeł SDN = fizyczny VPS, nie pojedynczy sensor. Wszystkie sensory na
+        // jednym VPS (cowrie-vps-frankfurt, web-vps-frankfurt, tcp-vps-frankfurt)
+        // mapują się na ten sam węzeł "node-frankfurt", który agent NodeMetrics
+        // wzbogaca o realne metryki hosta.
+        var site = ParseLocationFromSensorId(evt.SensorId);
+        var nodeId = $"node-{site}";
+        var nodeName = $"Edge-{site}";
+
         var now = DateTimeOffset.UtcNow;
 
-        if (_lastWritten.TryGetValue(evt.SensorId, out var lastTime))
+        if (_lastWritten.TryGetValue(nodeId, out var lastTime) && now - lastTime < _debounceInterval)
         {
-            if (now - lastTime < _debounceInterval)
-            {
-                // Pomijamy zapis, jeśli niedawno odświeżyliśmy ten węzeł
-                return;
-            }
+            // Pomijamy zapis, jeśli niedawno odświeżyliśmy ten węzeł.
+            return;
         }
 
         var container = GetContainer();
 
-        var location = ParseLocationFromSensorId(evt.SensorId);
-        
-        var node = new SdnNodeState
+        // Aktualizujemy WYŁĄCZNIE pola żywotności (status/lastSeen/location/name)
+        // operacją PATCH — pola metryk (cpu/ram/filteredTraffic/connections) należą
+        // do agenta NodeMetrics i NIE są tu nadpisywane.
+        var patch = new[]
         {
-            Id = evt.SensorId,
-            Name = evt.SensorId,
-            Location = location,
-            Status = "active",
-            DynamicMigration = false,
-            LastSeen = evt.Timestamp
+            PatchOperation.Set("/status", "active"),
+            PatchOperation.Set("/lastSeen", evt.Timestamp),
+            PatchOperation.Set("/location", site),
+            PatchOperation.Set("/name", nodeName),
         };
 
         try
         {
             await _retry.ExecuteAsync(
-                async token => await container.UpsertItemAsync(
-                    node,
-                    new PartitionKey(node.Id),
-                    cancellationToken: token),
+                async token => await container.PatchItemAsync<SdnNodeState>(
+                    nodeId, new PartitionKey(nodeId), patch, cancellationToken: token),
                 ct);
 
-            _lastWritten[evt.SensorId] = now;
+            _lastWritten[nodeId] = now;
+        }
+        catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // Pierwsze wystąpienie tego węzła — tworzymy dokument bazowy (bez metryk).
+            var node = new SdnNodeState
+            {
+                Id = nodeId,
+                Name = nodeName,
+                Location = site,
+                Status = "active",
+                DynamicMigration = false,
+                LastSeen = evt.Timestamp,
+            };
+
+            try
+            {
+                await _retry.ExecuteAsync(
+                    async token => await container.UpsertItemAsync(
+                        node, new PartitionKey(nodeId), cancellationToken: token),
+                    ct);
+
+                _lastWritten[nodeId] = now;
+            }
+            catch (Exception createEx)
+            {
+                _logger.LogWarning(createEx, "Nie udało się utworzyć węzła SDN {NodeId}", nodeId);
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Nie udało się zaktualizować statusu węzła SDN {SensorId}", evt.SensorId);
+            _logger.LogWarning(ex, "Nie udało się zaktualizować statusu węzła SDN {NodeId}", nodeId);
         }
     }
 

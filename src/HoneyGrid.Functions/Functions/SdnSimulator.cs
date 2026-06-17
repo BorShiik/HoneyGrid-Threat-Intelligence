@@ -1,20 +1,27 @@
-using System.Net;
 using HoneyGrid.Contracts;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Functions.Worker;
-using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Azure.Functions.Worker.SignalRService;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace HoneyGrid.Functions.Functions;
 
+/// <summary>
+/// Rozgłaszanie REALNEJ telemetrii węzłów SDN do klientów (SignalR, target
+/// "sdnTelemetry"). To NIE jest symulator — metryki (cpu/ram/ruch/połączenia)
+/// pochodzą z agenta <c>HoneyGrid.Sensors.NodeMetrics</c>, który czyta /proc na
+/// każdym VPS i zapisuje je w dokumencie węzła (kontener <c>sdnNodes</c>).
+///
+/// Funkcja tylko ODCZYTUJE te wartości i rozsyła je co 5 s — żadnych Random.
+/// Węzły bez świeżych metryk (lub bez agenta) raportują 0 i status "offline",
+/// gdy <c>lastSeen</c> jest starsze niż godzina.
+/// </summary>
 public sealed class SdnSimulator
 {
     private readonly CosmosClient _cosmos;
     private readonly ILogger<SdnSimulator> _logger;
     private readonly string _databaseName;
-    private static readonly Random Rnd = new();
 
     public SdnSimulator(CosmosClient cosmos, IConfiguration config, ILogger<SdnSimulator> logger)
     {
@@ -23,9 +30,9 @@ public sealed class SdnSimulator
         _databaseName = config["CosmosDatabase"] ?? "honeygrid";
     }
 
-    [Function(nameof(SimulateSdnTelemetry))]
+    [Function(nameof(BroadcastSdnTelemetry))]
     [SignalROutput(HubName = "attacks")]
-    public async Task<SignalRMessageAction[]> SimulateSdnTelemetry(
+    public async Task<SignalRMessageAction[]> BroadcastSdnTelemetry(
         [TimerTrigger("*/5 * * * * *")] TimerInfo timer,
         CancellationToken cancellationToken)
     {
@@ -42,55 +49,45 @@ public sealed class SdnSimulator
                 nodes.AddRange(page);
             }
         }
-        catch (CosmosException)
+        catch (CosmosException ex)
         {
-            // Container might not exist yet
+            // Kontener jeszcze nie istnieje (brak żadnych zdarzeń / agentów) — nic do rozgłoszenia.
+            _logger.LogDebug(ex, "SDN: kontener sdnNodes niedostępny — pomijam rozgłaszanie.");
             return [];
         }
 
         if (nodes.Count == 0) return [];
 
-        var events = new List<SdnTelemetryEvent>();
-
         var now = DateTimeOffset.UtcNow;
+        var events = new List<SdnTelemetryEvent>(nodes.Count);
+
         foreach (var node in nodes)
         {
-            if (node.Status == "offline" || (node.LastSeen.HasValue && (now - node.LastSeen.Value) > TimeSpan.FromHours(1)))
+            // Brak świeżych danych (godzina ciszy) → węzeł traktujemy jak offline,
+            // zerujemy metryki, żeby UI nie pokazywało nieaktualnych wartości.
+            var stale = node.LastSeen.HasValue && (now - node.LastSeen.Value) > TimeSpan.FromHours(1);
+            if (node.Status == "offline" || stale)
             {
                 events.Add(new SdnTelemetryEvent
                 {
-                    Id = node.Id,
-                    Cpu = 0,
-                    Ram = 12,
-                    FilteredTraffic = 0,
-                    Connections = 0
+                    Id = node.Id, Cpu = 0, Ram = 0, FilteredTraffic = 0, Connections = 0,
                 });
                 continue;
             }
 
-            int baseTraffic = node.Id switch
-            {
-                "sdn-03" => 23000,
-                "sdn-04" => 31000,
-                "sdn-01" => 12000,
-                "sdn-02" => 8000,
-                _ => 6000
-            };
-
-            int baseCpu = node.Status == "degraded" ? 85 : 40;
-            int baseConnections = baseTraffic / 15;
-
+            // Realne metryki z dokumentu (zapisane przez agenta NodeMetrics).
+            // Brak pola (agent jeszcze nie zaraportował) → 0, bez zmyślania.
             events.Add(new SdnTelemetryEvent
             {
                 Id = node.Id,
-                Cpu = Math.Clamp(baseCpu + Rnd.Next(-10, 15), 5, 100),
-                Ram = Math.Clamp(baseCpu + Rnd.Next(5, 25), 20, 95),
-                FilteredTraffic = Math.Max(0, baseTraffic + Rnd.Next(-2000, 2000)),
-                Connections = Math.Max(0, baseConnections + Rnd.Next(-100, 100))
+                Cpu = node.Cpu ?? 0,
+                Ram = node.Ram ?? 0,
+                FilteredTraffic = node.FilteredTraffic ?? 0,
+                Connections = node.Connections ?? 0,
             });
         }
 
-        // Broadcast to SignalR client using "sdnTelemetry" target
+        // Rozgłoszenie do klientów (target "sdnTelemetry").
         return [new SignalRMessageAction("sdnTelemetry", [events])];
     }
 }

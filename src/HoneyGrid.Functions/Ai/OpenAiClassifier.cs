@@ -33,6 +33,7 @@ public sealed class OpenAiClassifier
 
         var endpoint = config["OpenAIEndpoint"];
         var deployment = config["OpenAIDeployment"] ?? "gpt-4o-mini";
+        DeploymentName = deployment;
 
         if (string.IsNullOrWhiteSpace(endpoint))
         {
@@ -44,19 +45,22 @@ public sealed class OpenAiClassifier
         _chat = client.GetChatClient(deployment);
     }
 
+    public string DeploymentName { get; }
+
     /// <summary>Czy klasyfikator AI jest skonfigurowany i aktywny.</summary>
     public bool Enabled => _chat is not null;
 
     /// <summary>
     /// Klasyfikuje wsad zdarzeń. Zwraca listę wyrównaną indeksami do wejścia;
     /// pozycje, których model nie zwrócił/nie dało się sparsować, są null.
+    /// Zwraca również opóźnienie w milisekundach i flagę sukcesu.
     /// </summary>
-    public async Task<IReadOnlyList<ClassificationInfo?>> ClassifyAsync(
+    public async Task<(IReadOnlyList<ClassificationInfo?> Results, long LatencyMs, bool IsSuccess)> ClassifyAsync(
         IReadOnlyList<HoneypotEvent> batch, CancellationToken cancellationToken)
     {
         if (_chat is null || batch.Count == 0)
         {
-            return new ClassificationInfo?[batch.Count];
+            return (new ClassificationInfo?[batch.Count], 0, false);
         }
 
         var messages = new ChatMessage[]
@@ -66,8 +70,13 @@ public sealed class OpenAiClassifier
         };
         var options = new ChatCompletionOptions { Temperature = 0f };
 
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         var text = await CompleteWithRetryAsync(messages, options, cancellationToken);
-        return ClassificationResponseParser.Parse(text, batch.Count);
+        sw.Stop();
+
+        var isSuccess = text is not null;
+        var results = ClassificationResponseParser.Parse(text, batch.Count);
+        return (results, sw.ElapsedMilliseconds, isSuccess);
     }
 
     private async Task<string?> CompleteWithRetryAsync(
