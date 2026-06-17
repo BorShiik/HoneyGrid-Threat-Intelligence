@@ -186,7 +186,7 @@ function startSimulatorOnce(): void {
 }
 
 /** Idempotent: starts the live stream exactly once for the app session. */
-function ensureStreamStarted(): void {
+export function ensureStreamStarted(): void {
   if (streamStarted) return;
   streamStarted = true;
 

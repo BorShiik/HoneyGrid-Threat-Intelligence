@@ -210,19 +210,46 @@ public sealed class CosmosSessionWriter : IEventSinkTarget, IDisposable
     /// </summary>
     internal sealed class SessionProjection
     {
+        [System.Text.Json.Serialization.JsonPropertyName("id")]
         public string Id { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonPropertyName("sessionId")]
         public string SessionId { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonPropertyName("attackerIp")]
         public string AttackerIp { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonPropertyName("sensorId")]
         public string SensorId { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonPropertyName("startedAt")]
         public DateTimeOffset StartedAt { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("endedAt")]
         public DateTimeOffset EndedAt { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("durationMs")]
         public long DurationMs { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("commandCount")]
         public int CommandCount { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("ttyRef")]
         public string? TtyRef { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("hasTty")]
         public bool HasTty { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("country")]
         public string Country { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonPropertyName("countryName")]
         public string CountryName { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonPropertyName("lastEventType")]
         public string LastEventType { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonPropertyName("docType")]
         public string DocType { get; set; } = "session";
     }
 }

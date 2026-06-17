@@ -95,5 +95,26 @@ services:
       # dublujemy go w generycznym listenerze.
       TcpSensor__Ports__0: "3389"
 
+  # ── 4. Agent realnej telemetrii hosta (mapa SDN) ──────────────────────────
+  # Czyta /proc HOSTA (zamontowany read-only) i bezkluczowo PATCH-uje realne
+  # cpu/ram/ruch/połączenia do węzła "node-<site>" w Cosmos. Bez niego węzeł i
+  # tak istnieje (z atak­ów), ale metryki pozostają zerowe.
+  node-metrics:
+    image: ${HONEYGRID_ACR}/honeygrid-node-metrics:latest
+    container_name: node-metrics
+    restart: always
+    env_file: .env
+    environment:
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
+      NodeMetrics__Site: ${HONEYGRID_SITE:-site}
+      NodeMetrics__CosmosEndpoint: ${HONEYGRID_COSMOS_ENDPOINT}
+      NodeMetrics__ProcPath: "/host/proc"
+      NodeMetrics__IntervalSeconds: "10"
+    volumes:
+      # /proc hosta read-only → metryki dotyczą całego VPS, nie kontenera agenta.
+      - /proc:/host/proc:ro
+
 volumes:
   cowrie-logs:
